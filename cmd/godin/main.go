@@ -120,6 +120,26 @@ var packageRemoveCmd = &cobra.Command{
 	},
 }
 
+var getCmd = &cobra.Command{
+	Use:   "get",
+	Short: "Install dependencies from package.yaml",
+	Long: `Install all dependencies listed in package.yaml file.
+
+This command reads the package.yaml file in the current directory and installs
+all dependencies and dev_dependencies using 'go get'. It automatically handles
+both regular dependencies and the Godin framework itself.
+
+Examples:
+  godin get                    # Install all dependencies from package.yaml
+  godin get --dev              # Install dev dependencies as well
+  godin get --update           # Update dependencies to latest versions`,
+	Run: func(cmd *cobra.Command, args []string) {
+		dev, _ := cmd.Flags().GetBool("dev")
+		update, _ := cmd.Flags().GetBool("update")
+		installDependencies(dev, update)
+	},
+}
+
 var createCmd = &cobra.Command{
 	Use:   "create [app-name]",
 	Short: "Create a new Godin application",
@@ -178,6 +198,10 @@ func init() {
 	createCmd.Flags().StringP("description", "d", "", "Custom description for the application")
 	createCmd.Flags().Bool("list-templates", false, "List available templates")
 
+	// Get command flags
+	getCmd.Flags().Bool("dev", false, "Install dev dependencies as well")
+	getCmd.Flags().Bool("update", false, "Update dependencies to latest versions")
+
 	// Add subcommands
 	packageCmd.AddCommand(packageAddCmd)
 	packageCmd.AddCommand(packageListCmd)
@@ -188,6 +212,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(buildCmd)
+	rootCmd.AddCommand(getCmd)
 	rootCmd.AddCommand(packageCmd)
 }
 
@@ -451,6 +476,115 @@ func removePackage(packageName string) {
 	log.Println("Package removal not yet implemented")
 }
 
+func installDependencies(includeDev, update bool) {
+	log.Printf("📦 Installing dependencies from package.yaml...")
+
+	// Check if package.yaml exists
+	if !isGodinProject() {
+		log.Fatal("Error: Not in a Godin project directory. Make sure package.yaml exists.")
+	}
+
+	// Load package.yaml
+	config, err := loadPackageConfig(".")
+	if err != nil {
+		log.Fatalf("Failed to load package.yaml: %v", err)
+	}
+
+	log.Printf("📋 Found %d dependencies", len(config.Dependencies))
+	if includeDev {
+		log.Printf("📋 Found %d dev dependencies", len(config.DevDependencies))
+	}
+
+	// Install regular dependencies
+	for name, dep := range config.Dependencies {
+		if err := installGoPackage(name, dep.GitHub, dep.Version, update); err != nil {
+			log.Printf("⚠️  Warning: Failed to install %s: %v", name, err)
+		} else {
+			log.Printf("✅ Installed %s@%s", name, dep.Version)
+		}
+	}
+
+	// Install dev dependencies if requested
+	if includeDev {
+		for name, dep := range config.DevDependencies {
+			if err := installGoPackage(name, dep.GitHub, dep.Version, update); err != nil {
+				log.Printf("⚠️  Warning: Failed to install dev dependency %s: %v", name, err)
+			} else {
+				log.Printf("✅ Installed dev dependency %s@%s", name, dep.Version)
+			}
+		}
+	}
+
+	// Run go mod tidy to clean up
+	log.Printf("🧹 Running go mod tidy...")
+	tidyCmd := exec.Command("go", "mod", "tidy")
+	tidyCmd.Stdout = os.Stdout
+	tidyCmd.Stderr = os.Stderr
+	if err := tidyCmd.Run(); err != nil {
+		log.Printf("⚠️  Warning: go mod tidy failed: %v", err)
+	} else {
+		log.Printf("✅ Dependencies cleaned up")
+	}
+
+	log.Printf("🎉 All dependencies installed successfully!")
+}
+
+// PackageConfig represents the structure of package.yaml
+type PackageConfig struct {
+	Name            string                       `yaml:"name"`
+	Version         string                       `yaml:"version"`
+	Description     string                       `yaml:"description"`
+	Dependencies    map[string]PackageDependency `yaml:"dependencies"`
+	DevDependencies map[string]PackageDependency `yaml:"dev_dependencies"`
+	Scripts         map[string]string            `yaml:"scripts"`
+}
+
+// PackageDependency represents a package dependency
+type PackageDependency struct {
+	GitHub  string `yaml:"github"`
+	Version string `yaml:"version"`
+}
+
+// loadPackageConfig loads and parses package.yaml
+func loadPackageConfig(dir string) (*PackageConfig, error) {
+	configPath := filepath.Join(dir, "package.yaml")
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read package.yaml: %w", err)
+	}
+
+	var config PackageConfig
+	err = yaml.Unmarshal(data, &config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse package.yaml: %w", err)
+	}
+
+	return &config, nil
+}
+
+// installGoPackage installs a Go package using go get
+func installGoPackage(name, githubURL, version string, update bool) error {
+	if githubURL == "" {
+		return fmt.Errorf("no GitHub URL specified for package %s", name)
+	}
+
+	// Construct the go get command
+	var args []string
+	if update {
+		args = []string{"get", "-u", githubURL + "@" + version}
+	} else {
+		args = []string{"get", githubURL + "@" + version}
+	}
+
+	// Execute go get
+	cmd := exec.Command("go", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}
+
 func showAvailableTemplates() {
 	fmt.Println("Available Godin Templates:")
 	fmt.Println()
@@ -624,8 +758,8 @@ func createMinimalMainGo(appName string) {
 import (
 	"log"
 
-	"godin-framework/pkg/core"
-	"godin-framework/pkg/widgets"
+	"github.com/gideonsigilai/godin/pkg/core"
+	"github.com/gideonsigilai/godin/pkg/widgets"
 )
 
 func main() {
@@ -702,8 +836,8 @@ import (
 	"fmt"
 	"log"
 
-	"godin-framework/pkg/core"
-	"godin-framework/pkg/widgets"
+	"github.com/gideonsigilai/godin/pkg/core"
+	"github.com/gideonsigilai/godin/pkg/widgets"
 )
 
 // App state
@@ -1008,8 +1142,8 @@ import (
 	"log"
 	"strconv"
 
-	"godin-framework/pkg/core"
-	"godin-framework/pkg/widgets"
+	"github.com/gideonsigilai/godin/pkg/core"
+	"github.com/gideonsigilai/godin/pkg/widgets"
 )
 
 // Todo represents a todo item
@@ -1336,10 +1470,10 @@ func createGoMod(appName string) {
 
 go 1.21
 
-replace godin-framework => ` + finalPath + `
+replace github.com/gideonsigilai/godin => ` + finalPath + `
 
 require (
-	godin-framework v0.0.0-00010101000000-000000000000
+	github.com/gideonsigilai/godin v0.0.0-00010101000000-000000000000
 )
 `
 	} else {
@@ -1349,8 +1483,7 @@ require (
 go 1.21
 
 require (
-	godin-framework v1.0.0
-	github.com/gorilla/mux v1.8.1
+	github.com/gideonsigilai/godin v1.0.0
 )
 `
 	}
@@ -1723,7 +1856,7 @@ Create reusable widgets in the ` + "`widgets/components/`" + ` directory:
 ` + "```go" + `
 package components
 
-import "godin-framework/pkg/widgets"
+import "github.com/gideonsigilai/godin/pkg/widgets"
 
 func MyCustomWidget() widgets.Widget {
     return widgets.Container{
@@ -1830,8 +1963,8 @@ func needsImportFix() bool {
 	}
 
 	content := string(mainContent)
-	hasGodinImports := strings.Contains(content, "godin-framework/pkg/core") ||
-		strings.Contains(content, "godin-framework/pkg/widgets")
+	hasGodinImports := strings.Contains(content, "github.com/gideonsigilai/godin/pkg/core") ||
+		strings.Contains(content, "github.com/gideonsigilai/godin/pkg/widgets")
 
 	if !hasGodinImports {
 		return false
@@ -1885,10 +2018,10 @@ func fixFrameworkImports() error {
 
 go 1.21
 
-replace godin-framework => %s
+replace github.com/gideonsigilai/godin => %s
 
 require (
-	godin-framework v0.0.0-00010101000000-000000000000
+	github.com/gideonsigilai/godin v0.0.0-00010101000000-000000000000
 )
 `, getModuleName(), frameworkRoot)
 
