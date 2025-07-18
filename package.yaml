@@ -1,0 +1,162 @@
+name: godin-framework
+version: 1.0.0
+description: Server-Side Go with HTMX/WebSockets Framework
+
+dependencies:
+  godin-ui-kit:
+    github: "github.com/godin-framework/ui-kit"
+    version: "v1.2.0"
+  godin-charts:
+    github: "github.com/godin-framework/charts"
+    version: "v0.8.1"
+
+dev_dependencies:
+  godin-testing:
+    github: "github.com/godin-framework/testing"
+    version: "v1.0.0"
+
+scripts:
+  dev: "godin serve --watch"
+  build: "godin build --prod"
+  test: "godin test"
+  install: "go mod tidy"
+  clean: "rm -rf dist/ bin/"
+
+config:
+  server:
+    port: "8080"
+    host: "localhost"
+  websocket:
+    enabled: true
+    path: "/ws"
+  static:
+    dir: "static"
+    cache: true
+
+# Framework metadata
+framework:
+  name: "Godin"
+  description: "Server-Side Go with HTMX/WebSockets Framework"
+  version: "1.0.0"
+  author: "Godin Framework Team"
+  license: "MIT"
+  repository: "github.com/godin-framework/godin"
+  documentation: "https://godin-framework.dev"
+  
+  # Supported Go versions
+  go_version: ">=1.21"
+  
+  # Framework features
+  features:
+    - "Server-side rendering"
+    - "HTMX integration"
+    - "WebSocket support"
+    - "Flutter-like widgets"
+    - "CSS styling system"
+    - "Package management"
+    - "Hot reload development"
+    - "Real-time state management"
+
+# Build configuration
+build:
+  output_dir: "dist"
+  static_dir: "web/static"
+  templates_dir: "web/templates"
+  minify: true
+  source_maps: true
+  
+  # Asset optimization
+  assets:
+    css:
+      minify: true
+      autoprefixer: true
+    js:
+      minify: true
+      babel: true
+    images:
+      optimize: true
+      formats: ["webp", "avif"]
+
+# Development configuration
+development:
+  hot_reload: true
+  file_watching: true
+  auto_restart: true
+  debug_mode: true
+  
+  # Watch patterns
+  watch:
+    - "**/*.go"
+    - "**/*.html"
+    - "**/*.css"
+    - "**/*.js"
+    - "package.yaml"
+  
+  # Ignore patterns
+  ignore:
+    - "dist/**"
+    - "bin/**"
+    - "node_modules/**"
+    - ".git/**"
+
+# Testing configuration
+testing:
+  framework: "godin-testing"
+  coverage: true
+  benchmark: true
+  
+  # Test patterns
+  patterns:
+    unit: "**/*_test.go"
+    integration: "**/integration/*_test.go"
+    e2e: "**/e2e/*_test.go"
+
+# Package registry configuration
+registry:
+  default: "https://registry.godin-framework.dev"
+  mirrors:
+    - "https://mirror1.godin-framework.dev"
+    - "https://mirror2.godin-framework.dev"
+  
+  # Authentication
+  auth:
+    token_file: "~/.godin/auth.token"
+    
+# Deployment configuration
+deployment:
+  targets:
+    - name: "production"
+      type: "static"
+      provider: "netlify"
+      config:
+        build_command: "godin build --prod"
+        publish_dir: "dist"
+    
+    - name: "staging"
+      type: "server"
+      provider: "docker"
+      config:
+        dockerfile: "Dockerfile"
+        port: 8080
+
+# Plugin system
+plugins:
+  enabled:
+    - "godin-analytics"
+    - "godin-seo"
+    - "godin-pwa"
+  
+  config:
+    godin-analytics:
+      provider: "google"
+      tracking_id: "GA-XXXXXXXXX"
+    
+    godin-seo:
+      sitemap: true
+      robots: true
+      meta_tags: true
+    
+    godin-pwa:
+      service_worker: true
+      manifest: true
+      offline_support: true

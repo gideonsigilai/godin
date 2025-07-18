@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+
+    <!-- Godin Framework CSS -->
+    <link rel="stylesheet" href="/static/css/godin.css">
+
+    <!-- HTMX Library -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+    <!-- Additional CSS -->
+    {{if .CSS}}
+    <style>{{.CSS}}</style>
+    {{end}}
+</head>
+<body>
+    <!-- Main Content -->
+    <div id="app">
+        {{.Content}}
+    </div>
+
+    <!-- Godin Framework JavaScript -->
+    <script src="/static/js/godin.js"></script>
+
+    <!-- Additional JavaScript -->
+    {{if .JS}}
+    <script>{{.JS}}</script>
+    {{end}}
+</body>
+</html>
