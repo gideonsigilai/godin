@@ -1,4 +1,4 @@
-module godin-framework
+module github.com/gideonsigilai/godin
 
 go 1.24.4
 

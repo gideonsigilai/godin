@@ -8,7 +8,7 @@ First, make sure you have Go 1.21 or later installed on your system.
 
 Clone the Godin Framework repository:
 ```bash
-git clone https://github.com/godin-framework/godin
+git clone https://github.com/gideonsigilai/godin
 cd godin
 ```
 
@@ -136,7 +136,7 @@ description: A Godin framework application
 
 dependencies:
   godin-framework:
-    github: github.com/godin-framework/godin
+    github: github.com/gideonsigilai/godin
     version: v1.0.0
 
 scripts:

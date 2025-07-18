@@ -19,7 +19,7 @@ Godin is a modern web framework for Go that combines the power of server-side re
 ### Installation
 
 ```bash
-git clone https://github.com/godin-framework/godin
+git clone https://github.com/gideonsigilai/godin
 cd godin
 go build -o bin/godin cmd/godin/main.go
 ```
@@ -187,7 +187,7 @@ description: A Godin framework application
 
 dependencies:
   godin-framework:
-    github: github.com/godin-framework/godin
+    github: github.com/gideonsigilai/godin
     version: v1.0.0
 
 scripts:

@@ -2,8 +2,9 @@ package widgets
 
 import (
 	"fmt"
-	"godin-framework/pkg/core"
-	"godin-framework/pkg/state"
+
+	"github.com/gideonsigilai/godin/pkg/core"
+	"github.com/gideonsigilai/godin/pkg/state"
 )
 
 // ValueListenableBuilder represents a widget that rebuilds when a value changes

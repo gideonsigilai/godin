@@ -2,8 +2,9 @@ package widgets
 
 import (
 	"fmt"
-	"godin-framework/pkg/core"
-	"godin-framework/pkg/renderer"
+
+	"github.com/gideonsigilai/godin/pkg/core"
+	"github.com/gideonsigilai/godin/pkg/renderer"
 )
 
 // Widget is an alias for core.Widget for convenience

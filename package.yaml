@@ -40,7 +40,7 @@ framework:
   version: "1.0.0"
   author: "Godin Framework Team"
   license: "MIT"
-  repository: "github.com/godin-framework/godin"
+  repository: "github.com/gideonsigilai/godin"
   documentation: "https://godin-framework.dev"
   
   # Supported Go versions

@@ -2,9 +2,10 @@ package widgets
 
 import (
 	"fmt"
-	"godin-framework/pkg/core"
-	"godin-framework/pkg/renderer"
 	"strings"
+
+	"github.com/gideonsigilai/godin/pkg/core"
+	"github.com/gideonsigilai/godin/pkg/renderer"
 )
 
 // Text represents a text widget with full Flutter properties

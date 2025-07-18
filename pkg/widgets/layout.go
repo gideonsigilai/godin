@@ -2,10 +2,11 @@ package widgets
 
 import (
 	"fmt"
-	"godin-framework/pkg/core"
-	"godin-framework/pkg/renderer"
 	"math"
 	"strings"
+
+	"github.com/gideonsigilai/godin/pkg/core"
+	"github.com/gideonsigilai/godin/pkg/renderer"
 )
 
 // BoxConstraints represents layout constraints for layout widgets

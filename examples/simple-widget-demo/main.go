@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"godin-framework/pkg/core"
-	"godin-framework/pkg/widgets"
+	"github.com/gideonsigilai/godin/pkg/core"
+	"github.com/gideonsigilai/godin/pkg/widgets"
 )
 
 var clickCount = 0

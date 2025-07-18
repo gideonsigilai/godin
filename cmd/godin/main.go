@@ -547,7 +547,7 @@ func createPackageYaml(appName, description string) {
 		"description": description,
 		"dependencies": map[string]interface{}{
 			"godin-framework": map[string]interface{}{
-				"github":  "github.com/godin-framework/godin",
+				"github":  "github.com/gideonsigilai/godin",
 				"version": "v1.0.0",
 			},
 		},
@@ -1758,7 +1758,7 @@ This application is built with the Godin Framework, which provides:
 
 - [Godin Framework Documentation](https://godin-framework.dev)
 - [Widget Reference](https://godin-framework.dev/widgets)
-- [Examples](https://github.com/godin-framework/godin/tree/main/examples)
+- [Examples](https://github.com/gideonsigilai/godin/tree/main/examples)
 
 ## Contributing
 

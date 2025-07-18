@@ -1,9 +1,10 @@
 package core
 
 import (
-	"godin-framework/pkg/packages"
-	"godin-framework/pkg/state"
 	"net/http"
+
+	"github.com/gideonsigilai/godin/pkg/packages"
+	"github.com/gideonsigilai/godin/pkg/state"
 
 	"github.com/gorilla/mux"
 )
