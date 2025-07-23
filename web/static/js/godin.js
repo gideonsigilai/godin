@@ -26,15 +26,25 @@ class GodinFramework {
     
     onDOMReady() {
         console.log('Godin Framework initialized');
-        
+
         // Initialize WebSocket connection
         this.connectWebSocket();
-        
+
         // Setup HTMX event listeners
         this.setupHTMXListeners();
-        
+
         // Setup UI event listeners
         this.setupUIListeners();
+
+        // Debug: Log button clicks
+        document.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                console.log('Button clicked:', e.target.textContent);
+            }
+        });
+
+        // Setup native button click handling
+        this.setupNativeButtonHandling();
     }
     
     // WebSocket Management
@@ -48,12 +58,14 @@ class GodinFramework {
         if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
             return;
         }
-        
+
+        console.log('Attempting to connect to WebSocket:', this.wsUrl);
+
         try {
             this.websocket = new WebSocket(this.wsUrl);
-            
+
             this.websocket.onopen = (event) => {
-                console.log('WebSocket connected');
+                console.log('WebSocket connected successfully');
                 this.reconnectAttempts = 0;
                 this.onWebSocketOpen(event);
             };
@@ -352,10 +364,46 @@ class GodinFramework {
             }
         };
     }
+
+    setupNativeButtonHandling() {
+        console.log('Setting up native button handling');
+
+        // Check if handleButtonClick is already defined (it should be from base.html)
+        if (typeof window.handleButtonClick === 'function') {
+            console.log('✅ handleButtonClick already defined, skipping redefinition');
+            return;
+        }
+
+        // Fallback: Define handleButtonClick if not already available
+        console.log('⚠️ handleButtonClick not found, defining fallback');
+        window.handleButtonClick = (buttonId) => {
+            console.log('Native button clicked (fallback):', buttonId);
+
+            // Send button click to server via fetch
+            fetch(`/api/button-click/${buttonId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => {
+                if (response.ok) {
+                    console.log('Button click processed successfully');
+                } else {
+                    console.error('Button click failed:', response.status);
+                }
+            })
+            .catch(error => {
+                console.error('Button click error:', error);
+            });
+        };
+    }
 }
 
 // Initialize Godin Framework
 window.Godin = new GodinFramework();
+
+// Note: handleButtonClick is defined in base.html template to ensure it's available immediately
 
 // Export for module systems
 if (typeof module !== 'undefined' && module.exports) {

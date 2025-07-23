@@ -3,17 +3,16 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 
 	"github.com/gideonsigilai/godin/pkg/core"
 	"github.com/gideonsigilai/godin/pkg/widgets"
 )
 
-// App state for button demo
+// App state for button demo using TextEditingController and setState
 var (
-	clickCount    = 0
-	buttonEnabled = true
-	selectedType  = "primary"
+	clickCountController = widgets.NewTextEditingController("0")
+	buttonEnabled        = true
+	selectedType         = "primary"
 )
 
 func main() {
@@ -22,47 +21,15 @@ func main() {
 	// Enable WebSocket for real-time state updates
 	app.WebSocket().Enable("/ws")
 
+	// Initialize state
+	clickCountController.SetText("0")
+
 	// Routes
 	app.GET("/", HomeHandler)
 
-	// HTMX endpoints - these should return HTML fragments, not full pages
-	app.Router().HandleFunc("/increment", func(w http.ResponseWriter, r *http.Request) {
-		ctx := core.NewContext(w, r, app)
-		widget := IncrementHandler(ctx)
-		if widget != nil {
-			html := widget.Render(ctx)
-			ctx.WriteHTML(html)
-		}
-	}).Methods("POST")
-
-	app.Router().HandleFunc("/decrement", func(w http.ResponseWriter, r *http.Request) {
-		ctx := core.NewContext(w, r, app)
-		widget := DecrementHandler(ctx)
-		if widget != nil {
-			html := widget.Render(ctx)
-			ctx.WriteHTML(html)
-		}
-	}).Methods("POST")
-
-	app.Router().HandleFunc("/reset", func(w http.ResponseWriter, r *http.Request) {
-		ctx := core.NewContext(w, r, app)
-		widget := ResetHandler(ctx)
-		if widget != nil {
-			html := widget.Render(ctx)
-			ctx.WriteHTML(html)
-		}
-	}).Methods("POST")
-
-	app.POST("/toggle-enabled", ToggleEnabledHandler)
-	app.POST("/change-type", ChangeTypeHandler)
-
-	// State API endpoints for real-time updates
-	app.GET("/api/state/clickCount", ClickCountStateHandler)
-	app.GET("/api/state/buttonEnabled", ButtonEnabledStateHandler)
-	app.GET("/api/state/selectedType", SelectedTypeStateHandler)
-
 	log.Println("Starting Button Demo on :8081")
 	log.Println("Visit http://localhost:8081 to see the comprehensive button demo")
+	log.Println("This demo now uses the new callback system with automatic HTMX integration")
 	if err := app.Serve(":8081"); err != nil {
 		log.Fatal(err)
 	}
@@ -70,6 +37,7 @@ func main() {
 
 // HomeHandler renders the main button demo page
 func HomeHandler(ctx *core.Context) widgets.Widget {
+	x := "heelo"
 	return widgets.Container{
 		Style: "min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5;",
 		Child: widgets.Column{
@@ -80,7 +48,7 @@ func HomeHandler(ctx *core.Context) widgets.Widget {
 					Child: widgets.Column{
 						Children: []widgets.Widget{
 							widgets.Text{
-								Data: "Godin Framework - Button Demo",
+								Data: "Godin Framework - Button Demo " + x,
 								TextStyle: &widgets.TextStyle{
 									FontSize:   &[]float64{32}[0],
 									FontWeight: widgets.FontWeightBold,
@@ -141,7 +109,7 @@ func CounterSection() widgets.Widget {
 		Child: widgets.Column{
 			Children: []widgets.Widget{
 				widgets.Text{
-					Data: "Counter Demo",
+					Data: "Counter Demo - New Callback System",
 					TextStyle: &widgets.TextStyle{
 						FontSize:   &[]float64{24}[0],
 						FontWeight: widgets.FontWeightBold,
@@ -151,57 +119,87 @@ func CounterSection() widgets.Widget {
 
 				widgets.SizedBox{Height: &[]float64{20}[0]},
 
-				// Counter display with state management
-				widgets.Container{
-					ID:    "counter-display",
-					Style: "text-align: center; padding: 20px; background: #f8f9fa; border-radius: 8px; margin: 20px 0;",
-					Child: widgets.Text{
-						Data: fmt.Sprintf("Click Count: %d", clickCount),
-						TextStyle: &widgets.TextStyle{
-							FontSize:   &[]float64{36}[0],
-							FontWeight: widgets.FontWeightBold,
-							Color:      widgets.Color("#2196F3"),
-						},
-					},
-				},
-
 				widgets.SizedBox{Height: &[]float64{20}[0]},
 
-				// Counter buttons
+				// Counter buttons with new callback system
 				widgets.Row{
 					MainAxisAlignment: widgets.MainAxisAlignmentCenter,
 					Children: []widgets.Widget{
 						widgets.Button{
-							Text:     "Decrement",
-							Type:     "secondary",
-							HxPost:   "/decrement",
-							HxTarget: "#counter-display",
-							HxSwap:   "innerHTML",
-							Style:    "margin-right: 10px;",
+							ID:   "decrement-btn",
+							Text: "Decrement",
+							Type: "secondary",
+							OnPressed: func() {
+								currentValue := parseIntFromController(clickCountController)
+								newValue := currentValue - 1
+								clickCountController.SetText(fmt.Sprintf("%d", newValue))
+								log.Printf("Counter decremented to: %d", newValue)
+							},
+							Style: "margin-right: 10px;",
 						},
 
 						widgets.Button{
-							Text:     "Reset",
-							Type:     "danger",
-							HxPost:   "/reset",
-							HxTarget: "#counter-display",
-							HxSwap:   "innerHTML",
-							Style:    "margin: 0 10px;",
+							ID:   "reset-btn",
+							Text: "Reset",
+							Type: "danger",
+							OnPressed: func() {
+								clickCountController.SetText("0")
+								log.Println("Counter reset to: 0")
+							},
+							Style: "margin: 0 10px;",
 						},
 
 						widgets.Button{
-							Text:     "Increment",
-							Type:     "primary",
-							HxPost:   "/increment",
-							HxTarget: "#counter-display",
-							HxSwap:   "innerHTML",
-							Style:    "margin-left: 10px;",
+							ID:   "increment-btn",
+							Text: "Increment",
+							Type: "primary",
+							OnPressed: func() {
+								currentValue := parseIntFromController(clickCountController)
+								newValue := currentValue + 1
+								clickCountController.SetText(fmt.Sprintf("%d", newValue))
+								log.Printf("Counter incremented to: %d", newValue)
+							},
+							Style: "margin-left: 10px;",
 						},
 					},
+				},
+
+				widgets.SizedBox{Height: &[]float64{10}[0]},
+
+				// Text field to demonstrate TextEditingController
+				widgets.Text{
+					Data: "Direct Input (demonstrates TextEditingController):",
+					TextStyle: &widgets.TextStyle{
+						FontSize:   &[]float64{16}[0],
+						FontWeight: widgets.FontWeightBold,
+						Color:      widgets.Color("#666"),
+					},
+				},
+
+				widgets.SizedBox{Height: &[]float64{10}[0]},
+
+				widgets.TextField{
+					ID:         "counter-input",
+					Controller: clickCountController,
+					OnChanged: func(value string) {
+						log.Printf("Counter value changed via text input: %s", value)
+					},
+					Style: "max-width: 200px; margin: 0 auto;",
 				},
 			},
 		},
 	}
+}
+
+// Helper function to parse integer from TextEditingController
+func parseIntFromController(controller *widgets.TextEditingController) int {
+	value := 0
+	if controller.Text() != "" {
+		if parsed, err := fmt.Sscanf(controller.Text(), "%d", &value); err != nil || parsed != 1 {
+			value = 0
+		}
+	}
+	return value
 }
 
 // BasicButtonSection demonstrates basic button types
@@ -226,7 +224,7 @@ func BasicButtonSection() widgets.Widget {
 					Children: []widgets.Widget{
 						widgets.Button{
 							Text: "Default",
-							OnClick: func() {
+							OnPressed: func() {
 								log.Println("Default button clicked")
 							},
 						},
@@ -234,7 +232,7 @@ func BasicButtonSection() widgets.Widget {
 						widgets.Button{
 							Text: "Primary",
 							Type: "primary",
-							OnClick: func() {
+							OnPressed: func() {
 								log.Println("Primary button clicked")
 							},
 						},
@@ -242,7 +240,7 @@ func BasicButtonSection() widgets.Widget {
 						widgets.Button{
 							Text: "Secondary",
 							Type: "secondary",
-							OnClick: func() {
+							OnPressed: func() {
 								log.Println("Secondary button clicked")
 							},
 						},
@@ -250,7 +248,7 @@ func BasicButtonSection() widgets.Widget {
 						widgets.Button{
 							Text: "Danger",
 							Type: "danger",
-							OnClick: func() {
+							OnPressed: func() {
 								log.Println("Danger button clicked")
 							},
 						},
@@ -353,7 +351,7 @@ func InteractiveButtonSection() widgets.Widget {
 		Child: widgets.Column{
 			Children: []widgets.Widget{
 				widgets.Text{
-					Data: "Interactive Features",
+					Data: "Interactive Features - New Callback System",
 					TextStyle: &widgets.TextStyle{
 						FontSize:   &[]float64{24}[0],
 						FontWeight: widgets.FontWeightBold,
@@ -366,38 +364,69 @@ func InteractiveButtonSection() widgets.Widget {
 				widgets.Row{
 					MainAxisAlignment: widgets.MainAxisAlignmentSpaceAround,
 					Children: []widgets.Widget{
-						// Enabled/Disabled toggle
-						&widgets.Consumer{
-							StateKey: "buttonEnabled",
-							Builder: func(value interface{}) widgets.Widget {
-								enabled := true
-								if value != nil {
-									enabled = value.(bool)
+						// Dynamic button that changes based on state
+						func() widgets.Widget {
+							var button widgets.Widget
+							if buttonEnabled {
+								button = widgets.ElevatedButton{
+									ID:    "dynamic-button",
+									Child: widgets.Text{Data: "Enabled Button"},
+									OnPressed: func() {
+										log.Println("Enabled button clicked")
+									},
 								}
-
-								var button widgets.Widget
-								if enabled {
-									button = widgets.ElevatedButton{
-										Child: widgets.Text{Data: "Enabled Button"},
-										OnPressed: func() {
-											log.Println("Enabled button clicked")
-										},
-									}
-								} else {
-									button = widgets.ElevatedButton{
-										Child: widgets.Text{Data: "Disabled Button"},
-										// OnPressed is nil, making it disabled
-									}
+							} else {
+								button = widgets.ElevatedButton{
+									ID:    "dynamic-button",
+									Child: widgets.Text{Data: "Disabled Button"},
+									// OnPressed is nil, making it disabled
 								}
-								return button
-							},
-						},
+							}
+							return button
+						}(),
 
 						widgets.TextButton{
+							ID:    "toggle-button",
 							Child: widgets.Text{Data: "Toggle Enable/Disable"},
 							OnPressed: func() {
 								buttonEnabled = !buttonEnabled
 								log.Printf("Button enabled: %t", buttonEnabled)
+							},
+						},
+					},
+				},
+
+				widgets.SizedBox{Height: &[]float64{20}[0]},
+
+				// Switch widget demonstration
+				widgets.Text{
+					Data: "Switch Widget Demo:",
+					TextStyle: &widgets.TextStyle{
+						FontSize:   &[]float64{16}[0],
+						FontWeight: widgets.FontWeightBold,
+						Color:      widgets.Color("#666"),
+					},
+				},
+
+				widgets.SizedBox{Height: &[]float64{10}[0]},
+
+				widgets.Row{
+					MainAxisAlignment: widgets.MainAxisAlignmentCenter,
+					Children: []widgets.Widget{
+						widgets.Text{
+							Data: "Enable Features: ",
+							TextStyle: &widgets.TextStyle{
+								FontSize: &[]float64{16}[0],
+								Color:    widgets.Color("#666"),
+							},
+						},
+
+						widgets.Switch{
+							ID:    "feature-switch",
+							Value: buttonEnabled,
+							OnChanged: func(value bool) {
+								buttonEnabled = value
+								log.Printf("Switch toggled, button enabled: %t", buttonEnabled)
 							},
 						},
 					},
@@ -414,7 +443,7 @@ func StateManagementSection() widgets.Widget {
 		Child: widgets.Column{
 			Children: []widgets.Widget{
 				widgets.Text{
-					Data: "State Management Demo",
+					Data: "State Management Demo - New Callback System",
 					TextStyle: &widgets.TextStyle{
 						FontSize:   &[]float64{24}[0],
 						FontWeight: widgets.FontWeightBold,
@@ -425,7 +454,7 @@ func StateManagementSection() widgets.Widget {
 				widgets.SizedBox{Height: &[]float64{20}[0]},
 
 				widgets.Text{
-					Data: "This section demonstrates real-time state updates via WebSocket. Changes made here will be reflected across all connected clients.",
+					Data: "This section demonstrates setState functionality with automatic UI updates. No manual HTMX endpoints needed!",
 					TextStyle: &widgets.TextStyle{
 						FontSize: &[]float64{14}[0],
 						Color:    widgets.Color("#666"),
@@ -434,34 +463,27 @@ func StateManagementSection() widgets.Widget {
 
 				widgets.SizedBox{Height: &[]float64{20}[0]},
 
-				// Global state display
-				&widgets.Consumer{
-					StateKey: "selectedType",
-					Builder: func(value interface{}) widgets.Widget {
-						selectedType := "primary"
-						if value != nil {
-							selectedType = value.(string)
-						}
-						return widgets.Container{
-							Style: "padding: 15px; background: #e3f2fd; border-radius: 8px; text-align: center;",
-							Child: widgets.Text{
-								Data: fmt.Sprintf("Current Button Type: %s", selectedType),
-								TextStyle: &widgets.TextStyle{
-									FontWeight: widgets.FontWeightBold,
-									Color:      widgets.Color("#1976d2"),
-								},
-							},
-						}
+				// Global state display - now using simple state variable
+				widgets.Container{
+					ID:    "selected-type-display",
+					Style: "padding: 15px; background: #e3f2fd; border-radius: 8px; text-align: center;",
+					Child: widgets.Text{
+						Data: fmt.Sprintf("Current Button Type: %s", selectedType),
+						TextStyle: &widgets.TextStyle{
+							FontWeight: widgets.FontWeightBold,
+							Color:      widgets.Color("#1976d2"),
+						},
 					},
 				},
 
 				widgets.SizedBox{Height: &[]float64{20}[0]},
 
-				// Button type selectors
+				// Button type selectors with setState
 				widgets.Row{
 					MainAxisAlignment: widgets.MainAxisAlignmentSpaceAround,
 					Children: []widgets.Widget{
 						widgets.OutlinedButton{
+							ID:    "primary-btn",
 							Child: widgets.Text{Data: "Primary"},
 							OnPressed: func() {
 								selectedType = "primary"
@@ -470,6 +492,7 @@ func StateManagementSection() widgets.Widget {
 						},
 
 						widgets.OutlinedButton{
+							ID:    "secondary-btn",
 							Child: widgets.Text{Data: "Secondary"},
 							OnPressed: func() {
 								selectedType = "secondary"
@@ -478,10 +501,62 @@ func StateManagementSection() widgets.Widget {
 						},
 
 						widgets.OutlinedButton{
+							ID:    "danger-btn",
 							Child: widgets.Text{Data: "Danger"},
 							OnPressed: func() {
 								selectedType = "danger"
 								log.Printf("Selected type: %s", selectedType)
+							},
+						},
+					},
+				},
+
+				widgets.SizedBox{Height: &[]float64{20}[0]},
+
+				// Demonstration of form widgets with callbacks
+				widgets.Text{
+					Data: "Form Widgets Demo:",
+					TextStyle: &widgets.TextStyle{
+						FontSize:   &[]float64{18}[0],
+						FontWeight: widgets.FontWeightBold,
+						Color:      widgets.Color("#666"),
+					},
+				},
+
+				widgets.SizedBox{Height: &[]float64{10}[0]},
+
+				// Text form field with callback
+				widgets.TextFormField{
+					ID: "demo-form-field",
+					Decoration: &widgets.InputDecoration{
+						HintText: "Enter some text...",
+					},
+					OnChanged: func(value string) {
+						log.Printf("Form field changed: %s", value)
+					},
+					OnFieldSubmitted: func(value string) {
+						log.Printf("Form field submitted: %s", value)
+					},
+					Style: "margin-bottom: 10px;",
+				},
+
+				// Additional interactive widgets
+				widgets.Row{
+					MainAxisAlignment: widgets.MainAxisAlignmentSpaceAround,
+					Children: []widgets.Widget{
+						widgets.Text{
+							Data: "Demo Switch: ",
+							TextStyle: &widgets.TextStyle{
+								FontSize: &[]float64{16}[0],
+								Color:    widgets.Color("#666"),
+							},
+						},
+
+						widgets.Switch{
+							ID:    "demo-switch",
+							Value: false,
+							OnChanged: func(value bool) {
+								log.Printf("Demo switch changed: %t", value)
 							},
 						},
 					},
@@ -491,106 +566,6 @@ func StateManagementSection() widgets.Widget {
 	}
 }
 
-// Handler functions for button actions
-
-func IncrementHandler(ctx *core.Context) widgets.Widget {
-	clickCount++
-	ctx.App.State().Set("clickCount", clickCount)
-	log.Printf("Counter incremented to: %d", clickCount)
-
-	// Return updated counter display
-	return widgets.Text{
-		Data: fmt.Sprintf("Click Count: %d", clickCount),
-		TextStyle: &widgets.TextStyle{
-			FontSize:   &[]float64{36}[0],
-			FontWeight: widgets.FontWeightBold,
-			Color:      widgets.Color("#2196F3"),
-		},
-	}
-}
-
-func DecrementHandler(ctx *core.Context) widgets.Widget {
-	clickCount--
-	ctx.App.State().Set("clickCount", clickCount)
-	log.Printf("Counter decremented to: %d", clickCount)
-
-	// Return updated counter display
-	return widgets.Text{
-		Data: fmt.Sprintf("Click Count: %d", clickCount),
-		TextStyle: &widgets.TextStyle{
-			FontSize:   &[]float64{36}[0],
-			FontWeight: widgets.FontWeightBold,
-			Color:      widgets.Color("#2196F3"),
-		},
-	}
-}
-
-func ResetHandler(ctx *core.Context) widgets.Widget {
-	clickCount = 0
-	ctx.App.State().Set("clickCount", clickCount)
-	log.Printf("Counter reset to: %d", clickCount)
-
-	// Return updated counter display
-	return widgets.Text{
-		Data: fmt.Sprintf("Click Count: %d", clickCount),
-		TextStyle: &widgets.TextStyle{
-			FontSize:   &[]float64{36}[0],
-			FontWeight: widgets.FontWeightBold,
-			Color:      widgets.Color("#2196F3"),
-		},
-	}
-}
-
-func ToggleEnabledHandler(ctx *core.Context) widgets.Widget {
-	buttonEnabled = !buttonEnabled
-	ctx.App.State().Set("buttonEnabled", buttonEnabled)
-	log.Printf("Button enabled: %t", buttonEnabled)
-	return nil
-}
-
-func ChangeTypeHandler(ctx *core.Context) widgets.Widget {
-	newType := ctx.FormValue("type")
-	if newType != "" {
-		selectedType = newType
-		ctx.App.State().Set("selectedType", selectedType)
-		log.Printf("Selected type changed to: %s", selectedType)
-	}
-	return nil
-}
-
-// State API handlers for real-time updates
-
-func ClickCountStateHandler(ctx *core.Context) widgets.Widget {
-	return widgets.Text{
-		Data: fmt.Sprintf("%d", clickCount),
-		TextStyle: &widgets.TextStyle{
-			FontSize:   &[]float64{36}[0],
-			FontWeight: widgets.FontWeightBold,
-			Color:      widgets.Color("#2196F3"),
-		},
-	}
-}
-
-func ButtonEnabledStateHandler(ctx *core.Context) widgets.Widget {
-	status := "Enabled"
-	if !buttonEnabled {
-		status = "Disabled"
-	}
-	return widgets.Text{
-		Data: status,
-		TextStyle: &widgets.TextStyle{
-			FontWeight: widgets.FontWeightBold,
-			Color:      widgets.Color("#4CAF50"),
-		},
-	}
-}
-
-func SelectedTypeStateHandler(ctx *core.Context) widgets.Widget {
-	return widgets.Text{
-		Data: fmt.Sprintf("Current: %s", selectedType),
-		TextStyle: &widgets.TextStyle{
-			FontWeight: widgets.FontWeightBold,
-			Color:      widgets.Color("#1976d2"),
-		},
-	}
-}
+// Note: The old manual HTMX handler functions have been removed.
+// All button interactions now use the new callback system with automatic
+// HTMX integration through InteractiveWidget and setState functionality.

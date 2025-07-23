@@ -1,0 +1,172 @@
+/**
+ * Godin State Manager CSS
+ * Styles for ValueListener widgets and state management visual feedback
+ */
+
+/* Value update animation */
+.godin-value-updated {
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    background-color: rgba(76, 175, 80, 0.1);
+    transform: scale(1.02);
+}
+
+/* Loading states for value listeners */
+.godin-value-listener-loading {
+    opacity: 0.6;
+    position: relative;
+}
+
+.godin-value-listener-loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    animation: godin-shimmer 1.5s infinite;
+}
+
+@keyframes godin-shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Error states */
+.godin-value-listener-error {
+    color: #f44336;
+    background-color: rgba(244, 67, 54, 0.1);
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.godin-value-listener-error::before {
+    content: '⚠ ';
+    font-weight: bold;
+}
+
+/* Connection status indicator */
+.godin-connection-status {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    z-index: 1000;
+    transition: all 0.3s ease;
+}
+
+.godin-connection-status.connected {
+    background-color: #4caf50;
+    color: white;
+}
+
+.godin-connection-status.connecting {
+    background-color: #ff9800;
+    color: white;
+}
+
+.godin-connection-status.disconnected {
+    background-color: #f44336;
+    color: white;
+}
+
+.godin-connection-status.polling {
+    background-color: #2196f3;
+    color: white;
+}
+
+/* Fade in/out for connection status */
+.godin-connection-status.fade-in {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.godin-connection-status.fade-out {
+    opacity: 0;
+    transform: translateY(-20px);
+}
+
+/* Value listener containers */
+.godin-value-listener {
+    display: inline-block;
+    min-height: 1em;
+    min-width: 1ch;
+}
+
+.godin-value-listener:empty::after {
+    content: '—';
+    color: #ccc;
+    font-style: italic;
+}
+
+/* Specific value type styling */
+.godin-value-listener[data-value-type="number"] {
+    font-family: 'Courier New', monospace;
+    text-align: right;
+}
+
+.godin-value-listener[data-value-type="boolean"] {
+    font-weight: bold;
+}
+
+.godin-value-listener[data-value-type="boolean"][data-value="true"] {
+    color: #4caf50;
+}
+
+.godin-value-listener[data-value-type="boolean"][data-value="false"] {
+    color: #f44336;
+}
+
+/* Pulse animation for real-time updates */
+@keyframes godin-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(76, 175, 80, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
+    }
+}
+
+.godin-value-listener.pulse {
+    animation: godin-pulse 0.6s ease-out;
+}
+
+/* Debug mode styles */
+.godin-debug .godin-value-listener {
+    border: 1px dashed #ccc;
+    position: relative;
+}
+
+.godin-debug .godin-value-listener::before {
+    content: attr(data-value-listener-id);
+    position: absolute;
+    top: -20px;
+    left: 0;
+    font-size: 10px;
+    color: #666;
+    background: white;
+    padding: 2px 4px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .godin-connection-status {
+        top: 5px;
+        right: 5px;
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+}

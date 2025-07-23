@@ -758,12 +758,11 @@ func createMinimalMainGo(appName string) {
 import (
 	"log"
 
-	"github.com/gideonsigilai/godin/pkg/core"
-	"github.com/gideonsigilai/godin/pkg/widgets"
+	. "github.com/gideonsigilai/godin/pkg/godin"
 )
 
 func main() {
-	app := core.New()
+	app := New()
 
 	// Add your routes here
 	app.GET("/", HomeHandler)
@@ -776,25 +775,25 @@ func main() {
 }
 
 // HomeHandler renders the home page
-func HomeHandler(ctx *core.Context) widgets.Widget {
-	return widgets.Container{
+func HomeHandler(ctx *Context) Widget {
+	return Container{
 		Style: "max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;",
-		Child: widgets.Column{
-			Children: []widgets.Widget{
-				widgets.Text{
+		Child: Column{
+			Children: []Widget{
+				Text{
 					Data: "Welcome to ` + appName + `!",
-					TextStyle: &widgets.TextStyle{
+					TextStyle: &TextStyle{
 						FontSize:   &[]float64{32}[0],
-						FontWeight: widgets.FontWeightBold,
-						Color:      widgets.Color("#333"),
+						FontWeight: FontWeightBold,
+						Color:      Color("#333"),
 					},
 				},
-				widgets.SizedBox{Height: &[]float64{20}[0]},
-				widgets.Text{
+				SizedBox{Height: &[]float64{20}[0]},
+				Text{
 					Data: "Your Godin app is ready. Start building amazing things!",
-					TextStyle: &widgets.TextStyle{
+					TextStyle: &TextStyle{
 						FontSize: &[]float64{16}[0],
-						Color:    widgets.Color("#666"),
+						Color:    Color("#666"),
 					},
 				},
 			},
@@ -836,15 +835,14 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/gideonsigilai/godin/pkg/core"
-	"github.com/gideonsigilai/godin/pkg/widgets"
+	. "github.com/gideonsigilai/godin/pkg/godin"
 )
 
 // App state
 var counter = 0
 
 func main() {
-	app := core.New()
+	app := New()
 
 	// Routes
 	app.GET("/", HomeHandler)
@@ -861,57 +859,57 @@ func main() {
 }
 
 // HomeHandler renders the main counter page
-func HomeHandler(ctx *core.Context) widgets.Widget {
-	return widgets.Container{
+func HomeHandler(ctx *Context) Widget {
+	return Container{
 		Style: "min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;",
-		Child: widgets.Column{
-			Children: []widgets.Widget{
+		Child: Column{
+			Children: []Widget{
 				// App Bar
 				AppBarWidget("` + appName + `"),
 
 				// Main content
-				widgets.Expanded{
-					Child: widgets.Container{
+				Expanded{
+					Child: Container{
 						Style: "padding: 20px;",
-						Child: widgets.Column{
-							MainAxisAlignment: widgets.MainAxisAlignmentCenter,
-							Children: []widgets.Widget{
+						Child: Column{
+							MainAxisAlignment: MainAxisAlignmentCenter,
+							Children: []Widget{
 								// Counter display section
-								widgets.Text{
+								Text{
 									Data:      "You have pushed the button this many times:",
-									TextAlign: widgets.TextAlignCenter,
-									TextStyle: &widgets.TextStyle{
+									TextAlign: TextAlignCenter,
+									TextStyle: &TextStyle{
 										FontSize: &[]float64{16}[0],
 									},
 								},
 
 								// Spacer
-								widgets.SizedBox{Height: &[]float64{20}[0]},
+								SizedBox{Height: &[]float64{20}[0]},
 
 								// Counter value with ID for HTMX updates
-								widgets.Container{
+								Container{
 									ID: "counter-display",
-									Child: widgets.Text{
+									Child: Text{
 										Data:      fmt.Sprintf("%d", counter),
-										TextAlign: widgets.TextAlignCenter,
-										TextStyle: &widgets.TextStyle{
+										TextAlign: TextAlignCenter,
+										TextStyle: &TextStyle{
 											FontSize:   &[]float64{48}[0],
-											FontWeight: widgets.FontWeightBold,
-											Color:      widgets.Color("#2196F3"),
+											FontWeight: FontWeightBold,
+											Color:      Color("#2196F3"),
 										},
 									},
 								},
 
 								// Spacer
-								widgets.SizedBox{Height: &[]float64{40}[0]},
+								SizedBox{Height: &[]float64{40}[0]},
 
 								// Action buttons row
-								widgets.Row{
-									MainAxisAlignment: widgets.MainAxisAlignmentCenter,
-									Children: []widgets.Widget{
+								Row{
+									MainAxisAlignment: MainAxisAlignmentCenter,
+									Children: []Widget{
 										// Decrement button
-										widgets.ElevatedButton{
-											Child: widgets.Text{Data: "−"},
+										ElevatedButton{
+											Child: Text{Data: "−"},
 											OnPressed: func() {
 												counter--
 												log.Printf("Counter decremented to: %d", counter)
@@ -920,11 +918,11 @@ func HomeHandler(ctx *core.Context) widgets.Widget {
 										},
 
 										// Spacer
-										widgets.SizedBox{Width: &[]float64{20}[0]},
+										SizedBox{Width: &[]float64{20}[0]},
 
 										// Reset button
-										widgets.FilledButton{
-											Child: widgets.Text{Data: "Reset"},
+										FilledButton{
+											Child: Text{Data: "Reset"},
 											OnPressed: func() {
 												counter = 0
 												log.Printf("Counter reset to: %d", counter)
@@ -933,11 +931,11 @@ func HomeHandler(ctx *core.Context) widgets.Widget {
 										},
 
 										// Spacer
-										widgets.SizedBox{Width: &[]float64{20}[0]},
+										SizedBox{Width: &[]float64{20}[0]},
 
 										// Increment button
-										widgets.ElevatedButton{
-											Child: widgets.Text{Data: "+"},
+										ElevatedButton{
+											Child: Text{Data: "+"},
 											OnPressed: func() {
 												counter++
 												log.Printf("Counter incremented to: %d", counter)
@@ -959,65 +957,65 @@ func HomeHandler(ctx *core.Context) widgets.Widget {
 	// Continue with the rest of the counter template
 	mainGoContent += `
 // AboutHandler renders the about page
-func AboutHandler(ctx *core.Context) widgets.Widget {
-	return widgets.Container{
+func AboutHandler(ctx *Context) Widget {
+	return Container{
 		Style: "min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;",
-		Child: widgets.Column{
-			Children: []widgets.Widget{
+		Child: Column{
+			Children: []Widget{
 				// App Bar
 				AppBarWidget("About"),
 
 				// Main content
-				widgets.Expanded{
-					Child: widgets.Container{
+				Expanded{
+					Child: Container{
 						Style: "padding: 40px; max-width: 800px; margin: 0 auto;",
-						Child: widgets.Column{
-							CrossAxisAlignment: widgets.CrossAxisAlignmentStart,
-							Children: []widgets.Widget{
+						Child: Column{
+							CrossAxisAlignment: CrossAxisAlignmentStart,
+							Children: []Widget{
 								// Title
-								widgets.Text{
+								Text{
 									Data: "About ` + appName + `",
-									TextStyle: &widgets.TextStyle{
+									TextStyle: &TextStyle{
 										FontSize:   &[]float64{32}[0],
-										FontWeight: widgets.FontWeightBold,
-										Color:      widgets.Color("#333"),
+										FontWeight: FontWeightBold,
+										Color:      Color("#333"),
 									},
 								},
 
 								// Spacer
-								widgets.SizedBox{Height: &[]float64{30}[0]},
+								SizedBox{Height: &[]float64{30}[0]},
 
 								// Description
-								widgets.Text{
+								Text{
 									Data: "This is a counter application built with the Godin Framework.",
-									TextStyle: &widgets.TextStyle{
+									TextStyle: &TextStyle{
 										FontSize: &[]float64{16}[0],
-										Color:    widgets.Color("#666"),
+										Color:    Color("#666"),
 									},
 								},
 
 								// Spacer
-								widgets.SizedBox{Height: &[]float64{20}[0]},
+								SizedBox{Height: &[]float64{20}[0]},
 
 								// Current counter info
-								widgets.Card{
+								Container{
 									Style: "padding: 20px; border-radius: 8px; background-color: #f5f5f5;",
-									Child: widgets.Column{
-										Children: []widgets.Widget{
-											widgets.Text{
+									Child: Column{
+										Children: []Widget{
+											Text{
 												Data: "Current Counter Value:",
-												TextStyle: &widgets.TextStyle{
-													FontWeight: widgets.FontWeightBold,
-													Color:      widgets.Color("#333"),
+												TextStyle: &TextStyle{
+													FontWeight: FontWeightBold,
+													Color:      Color("#333"),
 												},
 											},
-											widgets.SizedBox{Height: &[]float64{10}[0]},
-											widgets.Text{
+											SizedBox{Height: &[]float64{10}[0]},
+											Text{
 												Data: fmt.Sprintf("%d", counter),
-												TextStyle: &widgets.TextStyle{
+												TextStyle: &TextStyle{
 													FontSize:   &[]float64{24}[0],
-													FontWeight: widgets.FontWeightBold,
-													Color:      widgets.Color("#2196F3"),
+													FontWeight: FontWeightBold,
+													Color:      Color("#2196F3"),
 												},
 											},
 										},
@@ -1035,24 +1033,26 @@ func AboutHandler(ctx *core.Context) widgets.Widget {
 // Helper Components
 
 // AppBarWidget creates a reusable app bar with navigation
-func AppBarWidget(title string) widgets.Widget {
-	return widgets.AppBar{
-		Title: widgets.Text{
-			Data: title,
-			TextStyle: &widgets.TextStyle{
-				Color:      widgets.ColorWhite,
-				FontSize:   &[]float64{20}[0],
-				FontWeight: widgets.FontWeightBold,
-			},
-		},
-		Style: "background: linear-gradient(135deg, #2196F3, #1976D2); color: white; padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);",
-		Actions: []widgets.Widget{
-			// Navigation menu
-			widgets.Row{
-				Children: []widgets.Widget{
-					NavButton("Home", "/"),
-					widgets.SizedBox{Width: &[]float64{10}[0]},
-					NavButton("About", "/about"),
+func AppBarWidget(title string) Widget {
+	return Container{
+		Style: "background: linear-gradient(135deg, #2196F3, #1976D2); color: white; padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center;",
+		Child: Row{
+			Children: []Widget{
+				Text{
+					Data: title,
+					TextStyle: &TextStyle{
+						Color:      ColorWhite,
+						FontSize:   &[]float64{20}[0],
+						FontWeight: FontWeightBold,
+					},
+				},
+				// Navigation menu
+				Row{
+					Children: []Widget{
+						NavButton("Home", "/"),
+						SizedBox{Width: &[]float64{10}[0]},
+						NavButton("About", "/about"),
+					},
 				},
 			},
 		},
@@ -1060,14 +1060,14 @@ func AppBarWidget(title string) widgets.Widget {
 }
 
 // NavButton creates a navigation button
-func NavButton(text, href string) widgets.Widget {
-	return widgets.Container{
+func NavButton(text, href string) Widget {
+	return Container{
 		Style: "padding: 8px 16px; border-radius: 4px; background: rgba(255,255,255,0.1); cursor: pointer;",
-		Child: widgets.Text{
+		Child: Text{
 			Data: text,
-			TextStyle: &widgets.TextStyle{
-				Color:      widgets.ColorWhite,
-				FontWeight: widgets.FontWeightW500,
+			TextStyle: &TextStyle{
+				Color:      ColorWhite,
+				FontWeight: FontWeightW500,
 			},
 		},
 	}
@@ -1076,52 +1076,52 @@ func NavButton(text, href string) widgets.Widget {
 // Action Handlers
 
 // IncrementHandler increments the counter
-func IncrementHandler(ctx *core.Context) widgets.Widget {
+func IncrementHandler(ctx *Context) Widget {
 	counter++
 	log.Printf("Counter incremented to: %d", counter)
 
 	// Return the updated counter display
-	return widgets.Text{
+	return Text{
 		Data:      fmt.Sprintf("%d", counter),
-		TextAlign: widgets.TextAlignCenter,
-		TextStyle: &widgets.TextStyle{
+		TextAlign: TextAlignCenter,
+		TextStyle: &TextStyle{
 			FontSize:   &[]float64{48}[0],
-			FontWeight: widgets.FontWeightBold,
-			Color:      widgets.Color("#2196F3"),
+			FontWeight: FontWeightBold,
+			Color:      Color("#2196F3"),
 		},
 	}
 }
 
 // DecrementHandler decrements the counter
-func DecrementHandler(ctx *core.Context) widgets.Widget {
+func DecrementHandler(ctx *Context) Widget {
 	counter--
 	log.Printf("Counter decremented to: %d", counter)
 
 	// Return the updated counter display
-	return widgets.Text{
+	return Text{
 		Data:      fmt.Sprintf("%d", counter),
-		TextAlign: widgets.TextAlignCenter,
-		TextStyle: &widgets.TextStyle{
+		TextAlign: TextAlignCenter,
+		TextStyle: &TextStyle{
 			FontSize:   &[]float64{48}[0],
-			FontWeight: widgets.FontWeightBold,
-			Color:      widgets.Color("#2196F3"),
+			FontWeight: FontWeightBold,
+			Color:      Color("#2196F3"),
 		},
 	}
 }
 
 // ResetHandler resets the counter to zero
-func ResetHandler(ctx *core.Context) widgets.Widget {
+func ResetHandler(ctx *Context) Widget {
 	counter = 0
 	log.Printf("Counter reset to: %d", counter)
 
 	// Return the updated counter display
-	return widgets.Text{
+	return Text{
 		Data:      fmt.Sprintf("%d", counter),
-		TextAlign: widgets.TextAlignCenter,
-		TextStyle: &widgets.TextStyle{
+		TextAlign: TextAlignCenter,
+		TextStyle: &TextStyle{
 			FontSize:   &[]float64{48}[0],
-			FontWeight: widgets.FontWeightBold,
-			Color:      widgets.Color("#2196F3"),
+			FontWeight: FontWeightBold,
+			Color:      Color("#2196F3"),
 		},
 	}
 }
@@ -1142,8 +1142,7 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/gideonsigilai/godin/pkg/core"
-	"github.com/gideonsigilai/godin/pkg/widgets"
+	. "github.com/gideonsigilai/godin/pkg/godin"
 )
 
 // Todo represents a todo item
@@ -1161,7 +1160,7 @@ var todos = []Todo{
 var nextID = 3
 
 func main() {
-	app := core.New()
+	app := New()
 
 	// Routes
 	app.GET("/", HomeHandler)
@@ -1177,8 +1176,8 @@ func main() {
 }
 
 // HomeHandler renders the main todo page
-func HomeHandler(ctx *core.Context) widgets.Widget {
-	return widgets.Container{
+func HomeHandler(ctx *Context) Widget {
+	return Container{
 		Style: "min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;",
 		Child: widgets.Column{
 			Children: []widgets.Widget{

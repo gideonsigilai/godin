@@ -1,0 +1,45 @@
+/* Counter App Styles - HOT REFRESH TEST MODIFIED! */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #e8f5e8; /* Changed background color for hot refresh test */
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.counter-display {
+    font-size: 48px;
+    font-weight: bold;
+    color: #2196F3;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.button {
+    padding: 10px 20px;
+    margin: 0 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.button-primary {
+    background-color: #2196F3;
+    color: white;
+}
+
+.button-danger {
+    background-color: #f44336;
+    color: white;
+}
+
+.button-secondary {
+    background-color: #757575;
+    color: white;
+}

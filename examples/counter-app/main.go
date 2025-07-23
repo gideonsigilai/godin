@@ -22,9 +22,15 @@ func main() {
 	app.POST("/decrement", DecrementHandler)
 	app.POST("/reset", ResetHandler)
 
-	log.Println("Starting Counter App on :8080")
-	log.Println("Visit http://localhost:8080 to see the app")
-	if err := app.Serve(":8080"); err != nil {
+	// Get port from environment variable or use default
+	port := core.GetEnvPort()
+	if port == "" {
+		port = ":8080"
+	}
+
+	log.Printf("🔥 HOT RELOAD TEST - Starting Counter App on %s", port)
+	log.Printf("🌐 Visit http://localhost%s to see the app", port)
+	if err := app.Serve(port); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -36,7 +42,7 @@ func HomeHandler(ctx *core.Context) widgets.Widget {
 		Child: widgets.Column{
 			Children: []widgets.Widget{
 				// App Bar
-				AppBarWidget("Flutter Demo Home Page"),
+				AppBarWidget("🔥 HOT RELOAD DEMO - File Watching Test"),
 
 				// Main content
 				widgets.Expanded{

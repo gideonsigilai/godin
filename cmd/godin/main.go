@@ -3,14 +3,20 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -37,10 +43,32 @@ var initCmd = &cobra.Command{
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start development server with hot reload",
+	Long: `Start the Godin development server with hot reload capabilities.
+
+This command starts a development server with the following features:
+- Hot reload: Automatically restarts the server when Go files change
+- Hot refresh: Refreshes the browser when static files change
+- Interactive commands: 'r' for manual hot reload, 'R' for manual hot refresh
+- File watching: Monitors file changes in real-time
+
+Examples:
+  godin serve                    # Start server on default port 8080
+  godin serve --port 3000        # Start server on custom port
+  godin serve --watch            # Enable file watching (default)
+  godin serve --listen           # Enable interactive commands`,
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("🚀 Godin serve command started")
+
 		port, _ := cmd.Flags().GetString("port")
 		watch, _ := cmd.Flags().GetBool("watch")
-		startDevServer(port, watch)
+		listen, _ := cmd.Flags().GetBool("listen")
+		enhancedReload, _ := cmd.Flags().GetBool("enhanced-reload")
+		restartRetries, _ := cmd.Flags().GetInt("restart-retries")
+		debounce, _ := cmd.Flags().GetDuration("debounce")
+
+		fmt.Printf("📋 Parsed flags: port=%s, watch=%v, listen=%v\n", port, watch, listen)
+
+		startDevServerEnhanced(port, watch, listen, enhancedReload, restartRetries, debounce)
 	},
 }
 
@@ -180,6 +208,10 @@ func init() {
 	// Serve command flags
 	serveCmd.Flags().StringP("port", "p", "8080", "Server port")
 	serveCmd.Flags().BoolP("watch", "w", true, "Enable file watching")
+	serveCmd.Flags().BoolP("listen", "l", false, "Enable interactive commands (r for reload, R for refresh)")
+	serveCmd.Flags().Bool("enhanced-reload", true, "Enable enhanced hot-reload with build caching and health monitoring")
+	serveCmd.Flags().Int("restart-retries", 3, "Number of restart attempts on failure")
+	serveCmd.Flags().Duration("debounce", 500*time.Millisecond, "File change debounce duration")
 
 	// Build command flags
 	buildCmd.Flags().StringP("output", "o", ".", "Output directory")
@@ -217,6 +249,7 @@ func init() {
 }
 
 func main() {
+	fmt.Println("🚀 Godin CLI starting...")
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -331,12 +364,970 @@ func main() {
 	log.Printf("  godin serve")
 }
 
-func startDevServer(port string, watch bool) {
-	log.Printf("Starting Godin development server on port %s", port)
-	log.Printf("Watch mode: %v", watch)
+func startDevServer(port string, watch bool, listen bool) {
+	// Use enhanced version with default settings
+	startDevServerEnhanced(port, watch, listen, true, 3, 500*time.Millisecond)
+}
 
-	// TODO: Implement server startup
-	log.Println("Development server functionality not yet implemented")
+func startDevServerEnhanced(port string, watch bool, listen bool, enhancedReload bool, restartRetries int, debounce time.Duration) {
+	fmt.Printf("🚀 Starting Godin development server on port %s\n", port)
+	fmt.Printf("📁 Watch mode: %v\n", watch)
+	fmt.Printf("⌨️  Interactive mode: %v\n", listen)
+	fmt.Printf("🔧 Enhanced reload: %v\n", enhancedReload)
+	if enhancedReload {
+		fmt.Printf("🔄 Restart retries: %d\n", restartRetries)
+		fmt.Printf("⏱️  Debounce duration: %v\n", debounce)
+	}
+
+	log.Printf("🚀 Starting Godin development server on port %s", port)
+	log.Printf("📁 Watch mode: %v", watch)
+	log.Printf("⌨️  Interactive mode: %v", listen)
+	log.Printf("🔧 Enhanced reload: %v", enhancedReload)
+
+	fmt.Println("🔍 Step 1: Checking project...")
+
+	// Check if we're in a Godin project
+	fmt.Println("🔍 Step 2: Checking if this is a Godin project...")
+	if !isGodinProject() {
+		log.Fatal("Error: Not in a Godin project directory. Make sure package.yaml exists.")
+	}
+	fmt.Println("✅ Godin project detected")
+
+	// Check if we need to fix imports for framework development
+	fmt.Println("🔍 Step 3: Checking if import fix is needed...")
+	if false { // Temporarily disabled to test hot-reload
+		fmt.Println("🔧 Detected Godin framework development environment")
+		log.Printf("🔧 Detected Godin framework development environment")
+		if err := fixFrameworkImports(); err != nil {
+			log.Printf("⚠️  Warning: Could not fix imports: %v", err)
+		} else {
+			log.Printf("✅ Framework imports fixed")
+		}
+	} else {
+		fmt.Println("✅ Import fix skipped for testing")
+	}
+
+	// Set development environment variables
+	fmt.Println("🔍 Step 4: Setting environment variables...")
+	os.Setenv("GODIN_DEBUG", "true")
+	os.Setenv("GODIN_LOG_LEVEL", "debug")
+	os.Setenv("GODIN_DEV_MODE", "true")
+	os.Setenv("GODIN_ENHANCED_RELOAD", fmt.Sprintf("%v", enhancedReload))
+	os.Setenv("GODIN_RESTART_RETRIES", fmt.Sprintf("%d", restartRetries))
+	os.Setenv("GODIN_DEBOUNCE_MS", fmt.Sprintf("%d", debounce.Milliseconds()))
+	fmt.Println("✅ Environment variables set")
+
+	// Start the development server with hot reload
+	if listen {
+		log.Println("📝 Interactive commands:")
+		log.Println("  r - Hot reload (restart server)")
+		log.Println("  R - Hot refresh (refresh browser)")
+		log.Println("  t - Test hot reload endpoints")
+		log.Println("  q - Quit server")
+		log.Println("  h - Show help")
+		log.Println("  Ctrl+C - Quit server")
+		if enhancedReload {
+			log.Println("🔧 Enhanced features:")
+			log.Println("  - Build caching and pre-checks")
+			log.Println("  - Health monitoring")
+			log.Println("  - Intelligent restart queuing")
+			log.Println("  - Smart file filtering")
+		}
+	}
+
+	// Start interactive command listener if enabled
+	fmt.Println("🔍 Step 5: Starting components...")
+	if listen {
+		fmt.Println("🎮 Starting interactive listener...")
+		go startInteractiveListener()
+	}
+
+	// Start the server process with enhanced features
+	fmt.Println("🚀 Starting server process...")
+	if enhancedReload {
+		startServerProcessEnhanced(port, watch, restartRetries, debounce)
+	} else {
+		startServerProcess(port, watch)
+	}
+}
+
+// Global variables for server control
+var (
+	serverCmd       *exec.Cmd
+	serverMutex     sync.Mutex
+	shouldRestart   = make(chan bool, 1)
+	shouldRefresh   = make(chan bool, 1)
+	watcher         *fsnotify.Watcher
+	watcherDone     = make(chan bool, 1)
+	buildMutex      sync.Mutex
+	lastBuildTime   time.Time
+	buildInProgress bool
+	restartQueue    = make(chan restartRequest, 10)
+	serverHealth    = make(chan bool, 1)
+)
+
+// restartRequest represents a server restart request with context
+type restartRequest struct {
+	reason    string
+	timestamp time.Time
+	port      string
+}
+
+// startInteractiveListener listens for interactive commands
+func startInteractiveListener() {
+	log.Println("🎮 Interactive mode started")
+	log.Println("📝 Type 'h' for help, 'q' to quit")
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("❌ Interactive listener panic recovered: %v", r)
+			}
+		}()
+
+		for {
+			var input string
+			fmt.Print("godin> ")
+			_, err := fmt.Scanln(&input)
+			if err != nil {
+				// Handle EOF or other input errors gracefully
+				continue
+			}
+
+			switch strings.TrimSpace(input) {
+			case "r", "reload":
+				log.Println("🔥 Manual hot reload triggered by user")
+				triggerHotReload()
+			case "R", "refresh":
+				log.Println("🔄 Manual hot refresh triggered by user")
+				triggerHotRefresh()
+			case "t", "test":
+				log.Println("🧪 Testing hot reload endpoints...")
+				go testHotReloadEndpoints(currentServerPort)
+			case "q", "quit", "exit":
+				log.Println("👋 Shutting down server...")
+				cleanup()
+				os.Exit(0)
+			case "h", "help":
+				log.Println("📝 Available commands:")
+				log.Println("  r, reload  - Hot reload (restart server)")
+				log.Println("  R, refresh - Hot refresh (refresh browser)")
+				log.Println("  t, test    - Test hot reload endpoints")
+				log.Println("  q, quit    - Quit server")
+				log.Println("  h, help    - Show this help")
+			case "":
+				// Ignore empty input
+				continue
+			default:
+				log.Printf("❓ Unknown command: %s. Type 'h' for help", input)
+			}
+		}
+	}()
+}
+
+// startServerProcess starts the Go application server with enhanced hot-reload
+func startServerProcess(port string, watch bool) {
+	// Set the current server port for hot refresh
+	currentServerPort = port
+
+	// Handle Ctrl+C gracefully
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	// Start file watcher if enabled
+	if watch {
+		startFileWatcher()
+	}
+
+	// Start the restart queue processor
+	go processRestartQueue()
+
+	// Start server health monitor
+	go monitorServerHealth()
+
+	// Start the initial server
+	go func() {
+		startServer(port)
+	}()
+
+	log.Printf("🎯 Enhanced server process manager started")
+	log.Printf("📝 Press 'r' for manual reload, 'R' for refresh, 'q' to quit")
+	log.Printf("🔧 Hot-reload features: Build caching, Health monitoring, Queue processing")
+
+	// Handle signals and restart requests
+	for {
+		select {
+		case <-c:
+			log.Println("\n👋 Shutting down server...")
+			cleanup()
+			os.Exit(0)
+		case <-shouldRestart:
+			log.Println("🔄 Queuing server restart...")
+			queueRestart("manual", port)
+		}
+	}
+}
+
+// startServerProcessEnhanced starts the Go application server with configurable enhanced hot-reload features
+func startServerProcessEnhanced(port string, watch bool, restartRetries int, debounce time.Duration) {
+	// Set the current server port for hot refresh
+	currentServerPort = port
+
+	// Handle Ctrl+C gracefully
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	// Start file watcher if enabled with enhanced filtering and custom debounce
+	if watch {
+		startFileWatcherEnhanced(debounce)
+	}
+
+	// Start the restart queue processor
+	go processRestartQueue()
+
+	// Start server health monitor
+	go monitorServerHealth()
+
+	// Start the initial server
+	go func() {
+		startServer(port)
+	}()
+
+	log.Printf("🎯 Enhanced server process manager started")
+	log.Printf("📝 Press 'r' for manual reload, 'R' for refresh, 'q' to quit")
+	log.Printf("🔧 Hot-reload features: Build caching, Health monitoring, Queue processing")
+	log.Printf("🔄 Restart retries: %d", restartRetries)
+	log.Printf("⏱️  Debounce duration: %v", debounce)
+
+	// Handle signals and restart requests
+	for {
+		select {
+		case <-c:
+			log.Println("\n👋 Shutting down server...")
+			cleanup()
+			os.Exit(0)
+		case <-shouldRestart:
+			log.Println("🔄 Queuing server restart...")
+			queueRestart("manual", port)
+		}
+	}
+}
+
+// startServer starts the Go application with enhanced error handling
+func startServer(port string) {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+
+	// Ensure previous server is fully stopped
+	if serverCmd != nil && serverCmd.Process != nil {
+		log.Println("🛑 Stopping previous server...")
+
+		// Try graceful shutdown first
+		if err := serverCmd.Process.Signal(os.Interrupt); err != nil {
+			// If graceful shutdown fails, force kill
+			serverCmd.Process.Kill()
+		}
+
+		// Wait for process to exit with timeout
+		done := make(chan error, 1)
+		go func() {
+			done <- serverCmd.Wait()
+		}()
+
+		select {
+		case <-done:
+			log.Println("✅ Previous server stopped gracefully")
+		case <-time.After(5 * time.Second):
+			log.Println("⚠️  Forcing server shutdown...")
+			serverCmd.Process.Kill()
+			<-done
+		}
+
+		// Wait longer to ensure port is fully released on Windows
+		log.Println("⏳ Waiting for port to be released...")
+		time.Sleep(3 * time.Second)
+
+		// Additional check to ensure port is available with retries
+		maxRetries := 5
+		for i := 0; i < maxRetries; i++ {
+			if isPortAvailable(port) {
+				log.Printf("✅ Port %s is now available", port)
+				break
+			}
+			log.Printf("⏳ Port %s still in use, waiting... (attempt %d/%d)", port, i+1, maxRetries)
+			time.Sleep(2 * time.Second)
+		}
+	}
+
+	// Pre-build check to catch compilation errors early
+	if !performPreBuildCheck() {
+		log.Printf("❌ Pre-build check failed, skipping server start")
+		return
+	}
+
+	log.Printf("🚀 Starting server on port %s...", port)
+
+	serverCmd = exec.Command("go", "run", ".")
+	serverCmd.Stdout = os.Stdout
+	serverCmd.Stderr = os.Stderr
+
+	// Set comprehensive development environment variables
+	env := append(os.Environ(),
+		"PORT="+port,
+		"GODIN_DEV_MODE=true",
+		"GODIN_HOT_RELOAD=true",
+		"GODIN_DEBUG=true",
+		"GODIN_LOG_LEVEL=debug",
+		"GODIN_WEBSOCKET_ENABLED=true",
+		"GODIN_FILE_WATCHING=true",
+	)
+
+	// Add port without colon for applications that expect it
+	if strings.HasPrefix(port, ":") {
+		env = append(env, "GODIN_PORT="+port[1:])
+	} else {
+		env = append(env, "GODIN_PORT="+port)
+	}
+
+	serverCmd.Env = env
+
+	if err := serverCmd.Start(); err != nil {
+		log.Printf("❌ Failed to start server: %v", err)
+		return
+	}
+
+	log.Printf("✅ Server started successfully (PID: %d)", serverCmd.Process.Pid)
+	log.Printf("🌐 Visit http://localhost:%s", port)
+
+	// Wait a moment for server to fully start
+	time.Sleep(1 * time.Second)
+
+	// Test hot reload endpoints
+	go testHotReloadEndpoints(port)
+
+	// Signal that server is healthy
+	select {
+	case serverHealth <- true:
+	default:
+	}
+}
+
+// stopServer stops the current server
+func stopServer() {
+	serverMutex.Lock()
+	defer serverMutex.Unlock()
+
+	if serverCmd != nil && serverCmd.Process != nil {
+		log.Println("🛑 Stopping server...")
+
+		// Try graceful shutdown first
+		if err := serverCmd.Process.Signal(os.Interrupt); err != nil {
+			// If graceful shutdown fails, force kill
+			serverCmd.Process.Kill()
+		}
+
+		// Wait for process to exit with timeout
+		done := make(chan error, 1)
+		go func() {
+			done <- serverCmd.Wait()
+		}()
+
+		select {
+		case <-done:
+			log.Println("✅ Server stopped gracefully")
+		case <-time.After(3 * time.Second):
+			log.Println("⚠️  Forcing server shutdown...")
+			serverCmd.Process.Kill()
+			<-done
+		}
+
+		serverCmd = nil
+	}
+}
+
+// cleanup performs cleanup operations when shutting down
+func cleanup() {
+	log.Println("🧹 Cleaning up...")
+
+	// Stop the server
+	stopServer()
+
+	// Stop file watcher
+	if watcher != nil {
+		select {
+		case watcherDone <- true:
+		default:
+		}
+		watcher.Close()
+		watcher = nil
+	}
+
+	log.Println("✅ Cleanup completed")
+}
+
+// restartServer is deprecated - use queueRestart instead
+func restartServer(port string) {
+	log.Println("🔄 Legacy restart function called - redirecting to queue")
+	queueRestart("legacy-restart", port)
+}
+
+// triggerHotReload triggers a server restart (legacy function, now uses queue)
+func triggerHotReload() {
+	queueRestart("manual-trigger", currentServerPort)
+}
+
+// Global variable to track current server port
+var currentServerPort string = "8080"
+
+// triggerHotRefresh triggers a browser refresh (via WebSocket if available)
+func triggerHotRefresh() {
+	log.Println("🔄 Hot refresh signal sent")
+
+	// Send hot refresh signal via HTTP to the running server
+	go func() {
+		// Wait a moment for server to be ready
+		time.Sleep(200 * time.Millisecond)
+
+		// Prepare the URL - handle both :port and port formats
+		port := currentServerPort
+		if !strings.HasPrefix(port, ":") {
+			port = ":" + port
+		}
+
+		// Try to send hot refresh signal to the running server
+		client := &http.Client{Timeout: 2 * time.Second}
+		url := fmt.Sprintf("http://localhost%s/api/hot-refresh", port)
+
+		log.Printf("🔄 Sending hot refresh to: %s", url)
+
+		resp, err := client.Post(url, "application/json", strings.NewReader(`{"type":"hot-refresh"}`))
+		if err != nil {
+			log.Printf("⚠️  Hot refresh request failed: %v", err)
+			return
+		}
+
+		if resp != nil {
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				log.Println("✅ Hot refresh signal sent successfully")
+			} else {
+				log.Printf("⚠️  Hot refresh returned status: %d", resp.StatusCode)
+			}
+		}
+	}()
+}
+
+// Enhanced hot-reload functions for guaranteed success
+
+// queueRestart adds a restart request to the queue
+func queueRestart(reason, port string) {
+	req := restartRequest{
+		reason:    reason,
+		timestamp: time.Now(),
+		port:      port,
+	}
+
+	select {
+	case restartQueue <- req:
+		log.Printf("🔄 Restart queued: %s", reason)
+	default:
+		log.Printf("⚠️  Restart queue full, dropping request: %s", reason)
+	}
+}
+
+// processRestartQueue processes restart requests with intelligent batching
+func processRestartQueue() {
+	var lastRestart time.Time
+	const minRestartInterval = 2 * time.Second
+
+	for req := range restartQueue {
+		// Batch rapid requests
+		if time.Since(lastRestart) < minRestartInterval {
+			log.Printf("⏳ Batching restart request: %s", req.reason)
+			time.Sleep(minRestartInterval - time.Since(lastRestart))
+		}
+
+		// Drain any additional requests that came in during the wait
+		var latestReq = req
+	drainLoop:
+		for {
+			select {
+			case newReq := <-restartQueue:
+				log.Printf("🔄 Batching additional request: %s", newReq.reason)
+				latestReq = newReq
+			default:
+				break drainLoop
+			}
+		}
+
+		log.Printf("🔄 Processing restart: %s", latestReq.reason)
+		performRestart(latestReq.port)
+		lastRestart = time.Now()
+	}
+}
+
+// performRestart performs the actual server restart with enhanced error handling
+func performRestart(port string) {
+	buildMutex.Lock()
+	defer buildMutex.Unlock()
+
+	if buildInProgress {
+		log.Println("⚠️  Build already in progress, skipping restart")
+		return
+	}
+
+	buildInProgress = true
+	defer func() {
+		buildInProgress = false
+	}()
+
+	log.Println("🔄 Initiating enhanced server restart...")
+
+	// Stop the current server
+	stopServer()
+
+	// Longer pause to ensure clean restart, especially on Windows
+	log.Println("⏳ Preparing for restart...")
+	time.Sleep(2 * time.Second)
+
+	// Find an available port near the original port to avoid Windows TIME_WAIT issues
+	newPort := findAvailablePort(port)
+	if newPort != port {
+		log.Printf("🔄 Using port %s instead of %s to avoid TIME_WAIT", newPort, port)
+		// Update the current server port for hot refresh
+		currentServerPort = newPort
+	}
+
+	// Start server with retry logic
+	maxRetries := 3
+	for i := 0; i < maxRetries; i++ {
+		log.Printf("🚀 Starting server attempt %d/%d", i+1, maxRetries)
+
+		// Start server in a goroutine to avoid blocking
+		go func(attempt int) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("❌ Server restart panic recovered (attempt %d): %v", attempt, r)
+					if attempt < maxRetries {
+						time.Sleep(3 * time.Second)
+						log.Printf("🔄 Attempting restart recovery %d/%d...", attempt+1, maxRetries)
+						performRestart(newPort)
+					}
+				}
+			}()
+			startServer(newPort)
+		}(i + 1)
+
+		// Wait for server health check
+		select {
+		case <-serverHealth:
+			log.Printf("✅ Server restart successful on attempt %d", i+1)
+			return
+		case <-time.After(10 * time.Second):
+			log.Printf("⚠️  Server health check timeout on attempt %d", i+1)
+			if i < maxRetries-1 {
+				stopServer()
+				time.Sleep(2 * time.Second)
+				continue
+			}
+		}
+	}
+
+	log.Printf("❌ Server restart failed after %d attempts", maxRetries)
+}
+
+// monitorServerHealth monitors server health and triggers restarts if needed
+func monitorServerHealth() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if serverCmd != nil && serverCmd.Process != nil {
+				// Check if process is still running
+				if err := serverCmd.Process.Signal(syscall.Signal(0)); err != nil {
+					log.Printf("⚠️  Server process health check failed: %v", err)
+					log.Printf("🔄 Triggering automatic restart due to health check failure")
+					queueRestart("health-check-failure", currentServerPort)
+				}
+			}
+		}
+	}
+}
+
+// performPreBuildCheck performs a quick compilation check before starting server
+func performPreBuildCheck() bool {
+	buildMutex.Lock()
+	defer buildMutex.Unlock()
+
+	// Skip if we just did a build check recently
+	if time.Since(lastBuildTime) < 5*time.Second {
+		return true
+	}
+
+	log.Println("🔍 Performing pre-build check...")
+
+	// Try to build without running
+	cmd := exec.Command("go", "build", "-o", "temp_build_check", ".")
+	cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
+
+	// Clean up temp file
+	os.Remove("temp_build_check")
+	os.Remove("temp_build_check.exe")
+
+	lastBuildTime = time.Now()
+
+	if err != nil {
+		log.Printf("❌ Pre-build check failed: %v", err)
+		return false
+	}
+
+	log.Println("✅ Pre-build check passed")
+	return true
+}
+
+// Enhanced file watching with smart filtering and dependency tracking
+
+// shouldProcessFileEvent determines if a file change event should trigger a reload with enhanced filtering
+func shouldProcessFileEventEnhanced(event fsnotify.Event) bool {
+	// Only process write and create events
+	if event.Op&fsnotify.Write == 0 && event.Op&fsnotify.Create == 0 {
+		return false
+	}
+
+	fileName := filepath.Base(event.Name)
+	ext := strings.ToLower(filepath.Ext(event.Name))
+
+	// Skip temporary files and common editor artifacts
+	if strings.HasPrefix(fileName, ".") ||
+		strings.HasPrefix(fileName, "~") ||
+		strings.HasSuffix(fileName, ".tmp") ||
+		strings.HasSuffix(fileName, ".swp") ||
+		strings.HasSuffix(fileName, ".bak") ||
+		strings.Contains(fileName, "___jb_tmp___") || // JetBrains temp files
+		strings.Contains(fileName, "___jb_old___") { // JetBrains backup files
+		return false
+	}
+
+	// Skip build artifacts and common ignore patterns
+	if strings.Contains(event.Name, "/.git/") ||
+		strings.Contains(event.Name, "/node_modules/") ||
+		strings.Contains(event.Name, "/dist/") ||
+		strings.Contains(event.Name, "/bin/") ||
+		strings.Contains(event.Name, "/vendor/") ||
+		strings.Contains(event.Name, "\\dist\\") ||
+		strings.Contains(event.Name, "\\bin\\") ||
+		strings.Contains(event.Name, "\\.git\\") {
+		return false
+	}
+
+	// Check file extension
+	watchedExtensions := []string{".go", ".html", ".css", ".js", ".yaml", ".yml", ".json", ".md"}
+	for _, watchedExt := range watchedExtensions {
+		if ext == watchedExt {
+			return true
+		}
+	}
+
+	// Also watch package.yaml specifically
+	if fileName == "package.yaml" || fileName == "go.mod" || fileName == "go.sum" {
+		return true
+	}
+
+	return false
+}
+
+// startFileWatcher starts watching files for changes
+func startFileWatcher() {
+	var err error
+	watcher, err = fsnotify.NewWatcher()
+	if err != nil {
+		log.Printf("❌ Error creating file watcher: %v", err)
+		return
+	}
+
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Printf("❌ Error getting current directory: %v", err)
+		watcher.Close()
+		return
+	}
+
+	// Add paths to watch - watch the current project directory
+	watchPaths := []string{".", "static", "templates", "web"}
+	watchedCount := 0
+	for _, path := range watchPaths {
+		fullPath := filepath.Join(cwd, path)
+		if _, err := os.Stat(fullPath); err == nil {
+			err = addPathRecursively(watcher, fullPath)
+			if err != nil {
+				log.Printf("⚠️  Error watching path %s: %v", fullPath, err)
+			} else {
+				log.Printf("👀 Watching: %s", fullPath)
+				watchedCount++
+			}
+		}
+	}
+
+	if watchedCount == 0 {
+		log.Printf("⚠️  No valid paths found to watch")
+		watcher.Close()
+		return
+	}
+
+	log.Printf("👀 File watcher started for project: %s (%d paths)", cwd, watchedCount)
+
+	// Debounce timer to prevent rapid restarts
+	debounceTimer := time.NewTimer(0)
+	debounceTimer.Stop()
+
+	// Start watching in a separate goroutine
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("❌ File watcher panic recovered: %v", r)
+			}
+			watcher.Close()
+		}()
+
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					log.Printf("👋 File watcher events channel closed")
+					return
+				}
+
+				if shouldProcessFileEventEnhanced(event) {
+					// Get relative path for better logging
+					filePath := event.Name
+					if cwd, err := os.Getwd(); err == nil {
+						if rel, err := filepath.Rel(cwd, filePath); err == nil {
+							filePath = rel
+						}
+					}
+					log.Printf("📝 File changed: %s", filePath)
+
+					// Stop previous timer if running
+					if !debounceTimer.Stop() {
+						select {
+						case <-debounceTimer.C:
+						default:
+						}
+					}
+
+					// Debounce rapid file changes
+					debounceTimer.Reset(500 * time.Millisecond)
+					go func(evt fsnotify.Event) {
+						<-debounceTimer.C
+						handleFileChangeEvent(evt)
+					}(event)
+				}
+
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					log.Printf("👋 File watcher errors channel closed")
+					return
+				}
+				log.Printf("❌ File watcher error: %v", err)
+
+			case <-watcherDone:
+				log.Printf("👋 File watcher stopped")
+				return
+			}
+		}
+	}()
+}
+
+// startFileWatcherEnhanced starts watching files for changes with configurable debounce
+func startFileWatcherEnhanced(debounce time.Duration) {
+	var err error
+	watcher, err = fsnotify.NewWatcher()
+	if err != nil {
+		log.Printf("❌ Error creating enhanced file watcher: %v", err)
+		return
+	}
+
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Printf("❌ Error getting current directory: %v", err)
+		watcher.Close()
+		return
+	}
+
+	// Add paths to watch - watch the current project directory
+	watchPaths := []string{".", "static", "templates", "web", "handlers", "widgets"}
+	watchedCount := 0
+	for _, path := range watchPaths {
+		fullPath := filepath.Join(cwd, path)
+		if _, err := os.Stat(fullPath); err == nil {
+			err = addPathRecursively(watcher, fullPath)
+			if err != nil {
+				log.Printf("⚠️  Error watching path %s: %v", fullPath, err)
+			} else {
+				log.Printf("👀 Enhanced watching: %s", fullPath)
+				watchedCount++
+			}
+		}
+	}
+
+	if watchedCount == 0 {
+		log.Printf("⚠️  No valid paths found to watch")
+		watcher.Close()
+		return
+	}
+
+	log.Printf("👀 Enhanced file watcher started for project: %s (%d paths)", cwd, watchedCount)
+	log.Printf("⏱️  Using custom debounce duration: %v", debounce)
+
+	// Debounce timer to prevent rapid restarts with configurable duration
+	debounceTimer := time.NewTimer(0)
+	debounceTimer.Stop()
+
+	// Start watching in a separate goroutine
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("❌ Enhanced file watcher panic recovered: %v", r)
+			}
+			watcher.Close()
+		}()
+
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					log.Printf("👋 Enhanced file watcher events channel closed")
+					return
+				}
+
+				if shouldProcessFileEventEnhanced(event) {
+					// Get relative path for better logging
+					filePath := event.Name
+					if rel, err := filepath.Rel(cwd, filePath); err == nil {
+						filePath = rel
+					}
+					log.Printf("📝 Enhanced file changed: %s", filePath)
+
+					// Stop previous timer if running
+					if !debounceTimer.Stop() {
+						select {
+						case <-debounceTimer.C:
+						default:
+						}
+					}
+
+					// Debounce rapid file changes with configurable duration
+					debounceTimer.Reset(debounce)
+					go func(evt fsnotify.Event) {
+						<-debounceTimer.C
+						handleFileChangeEvent(evt)
+					}(event)
+				}
+
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					log.Printf("👋 Enhanced file watcher errors channel closed")
+					return
+				}
+				log.Printf("❌ Enhanced file watcher error: %v", err)
+
+			case <-watcherDone:
+				log.Printf("👋 Enhanced file watcher stopped")
+				return
+			}
+		}
+	}()
+}
+
+// addPathRecursively adds a path and all its subdirectories to the watcher
+func addPathRecursively(watcher *fsnotify.Watcher, root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip hidden directories and common ignore patterns
+		if info.IsDir() {
+			name := info.Name()
+			if strings.HasPrefix(name, ".") ||
+				name == "node_modules" ||
+				name == "dist" ||
+				name == "bin" ||
+				name == "vendor" {
+				return filepath.SkipDir
+			}
+			return watcher.Add(path)
+		}
+		return nil
+	})
+}
+
+// shouldProcessFileEvent determines if a file change event should trigger a reload
+func shouldProcessFileEvent(event fsnotify.Event) bool {
+	// Only process write and create events
+	if event.Op&fsnotify.Write == 0 && event.Op&fsnotify.Create == 0 {
+		return false
+	}
+
+	// Check file extension
+	ext := strings.ToLower(filepath.Ext(event.Name))
+	watchedExtensions := []string{".go", ".html", ".css", ".js", ".yaml", ".yml"}
+
+	for _, watchedExt := range watchedExtensions {
+		if ext == watchedExt {
+			return true
+		}
+	}
+
+	// Also watch package.yaml specifically
+	if strings.HasSuffix(event.Name, "package.yaml") {
+		return true
+	}
+
+	return false
+}
+
+// handleFileChangeEvent processes a file change and triggers appropriate actions
+func handleFileChangeEvent(event fsnotify.Event) {
+	ext := strings.ToLower(filepath.Ext(event.Name))
+	fileName := filepath.Base(event.Name)
+	filePath := event.Name
+
+	// Get relative path for better logging
+	if cwd, err := os.Getwd(); err == nil {
+		if rel, err := filepath.Rel(cwd, filePath); err == nil {
+			filePath = rel
+		}
+	}
+
+	log.Printf("📝 File change detected: %s (type: %s)", filePath, event.Op.String())
+
+	switch ext {
+	case ".go", ".yaml", ".yml":
+		// Go files or config changes require hot reload (restart)
+		log.Printf("🔥 Go/config file changed (%s) - queuing hot reload", filePath)
+		queueRestart("file-change:"+filePath, currentServerPort)
+	case ".html", ".css", ".js":
+		// Static files can use hot refresh (no restart)
+		log.Printf("🔄 Static file changed (%s) - triggering hot refresh", filePath)
+		triggerHotRefresh()
+	default:
+		// Check if it's package.yaml specifically
+		if fileName == "package.yaml" {
+			log.Printf("🔥 Package config changed - queuing hot reload")
+			queueRestart("package-config-change", currentServerPort)
+		} else {
+			// Default to hot reload for unknown files
+			log.Printf("🔥 File changed (%s) - queuing hot reload", filePath)
+			queueRestart("file-change:"+filePath, currentServerPort)
+		}
+	}
 }
 
 func buildApp(output, name string) {
@@ -758,12 +1749,11 @@ func createMinimalMainGo(appName string) {
 import (
 	"log"
 
-	"github.com/gideonsigilai/godin/pkg/core"
-	"github.com/gideonsigilai/godin/pkg/widgets"
+	. "github.com/gideonsigilai/godin/pkg/godin"
 )
 
 func main() {
-	app := core.New()
+	app := New()
 
 	// Add your routes here
 	app.GET("/", HomeHandler)
@@ -776,25 +1766,25 @@ func main() {
 }
 
 // HomeHandler renders the home page
-func HomeHandler(ctx *core.Context) widgets.Widget {
-	return widgets.Container{
+func HomeHandler(ctx *Context) Widget {
+	return Container{
 		Style: "max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;",
-		Child: widgets.Column{
-			Children: []widgets.Widget{
-				widgets.Text{
+		Child: Column{
+			Children: []Widget{
+				Text{
 					Data: "Welcome to ` + appName + `!",
-					TextStyle: &widgets.TextStyle{
+					TextStyle: &TextStyle{
 						FontSize:   &[]float64{32}[0],
-						FontWeight: widgets.FontWeightBold,
-						Color:      widgets.Color("#333"),
+						FontWeight: FontWeightBold,
+						Color:      Color("#333"),
 					},
 				},
-				widgets.SizedBox{Height: &[]float64{20}[0]},
-				widgets.Text{
+				SizedBox{Height: &[]float64{20}[0]},
+				Text{
 					Data: "Your Godin app is ready. Start building amazing things!",
-					TextStyle: &widgets.TextStyle{
+					TextStyle: &TextStyle{
 						FontSize: &[]float64{16}[0],
-						Color:    widgets.Color("#666"),
+						Color:    Color("#666"),
 					},
 				},
 			},
@@ -836,15 +1826,14 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/gideonsigilai/godin/pkg/core"
-	"github.com/gideonsigilai/godin/pkg/widgets"
+	. "github.com/gideonsigilai/godin/pkg/godin"
 )
 
 // App state
 var counter = 0
 
 func main() {
-	app := core.New()
+	app := New()
 
 	// Routes
 	app.GET("/", HomeHandler)
@@ -861,57 +1850,57 @@ func main() {
 }
 
 // HomeHandler renders the main counter page
-func HomeHandler(ctx *core.Context) widgets.Widget {
-	return widgets.Container{
+func HomeHandler(ctx *Context) Widget {
+	return Container{
 		Style: "min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;",
-		Child: widgets.Column{
-			Children: []widgets.Widget{
+		Child: Column{
+			Children: []Widget{
 				// App Bar
 				AppBarWidget("` + appName + `"),
 
 				// Main content
-				widgets.Expanded{
-					Child: widgets.Container{
+				Expanded{
+					Child: Container{
 						Style: "padding: 20px;",
-						Child: widgets.Column{
-							MainAxisAlignment: widgets.MainAxisAlignmentCenter,
-							Children: []widgets.Widget{
+						Child: Column{
+							MainAxisAlignment: MainAxisAlignmentCenter,
+							Children: []Widget{
 								// Counter display section
-								widgets.Text{
+								Text{
 									Data:      "You have pushed the button this many times:",
-									TextAlign: widgets.TextAlignCenter,
-									TextStyle: &widgets.TextStyle{
+									TextAlign: TextAlignCenter,
+									TextStyle: &TextStyle{
 										FontSize: &[]float64{16}[0],
 									},
 								},
 
 								// Spacer
-								widgets.SizedBox{Height: &[]float64{20}[0]},
+								SizedBox{Height: &[]float64{20}[0]},
 
 								// Counter value with ID for HTMX updates
-								widgets.Container{
+								Container{
 									ID: "counter-display",
-									Child: widgets.Text{
+									Child: Text{
 										Data:      fmt.Sprintf("%d", counter),
-										TextAlign: widgets.TextAlignCenter,
-										TextStyle: &widgets.TextStyle{
+										TextAlign: TextAlignCenter,
+										TextStyle: &TextStyle{
 											FontSize:   &[]float64{48}[0],
-											FontWeight: widgets.FontWeightBold,
-											Color:      widgets.Color("#2196F3"),
+											FontWeight: FontWeightBold,
+											Color:      Color("#2196F3"),
 										},
 									},
 								},
 
 								// Spacer
-								widgets.SizedBox{Height: &[]float64{40}[0]},
+								SizedBox{Height: &[]float64{40}[0]},
 
 								// Action buttons row
-								widgets.Row{
-									MainAxisAlignment: widgets.MainAxisAlignmentCenter,
-									Children: []widgets.Widget{
+								Row{
+									MainAxisAlignment: MainAxisAlignmentCenter,
+									Children: []Widget{
 										// Decrement button
-										widgets.ElevatedButton{
-											Child: widgets.Text{Data: "−"},
+										ElevatedButton{
+											Child: Text{Data: "−"},
 											OnPressed: func() {
 												counter--
 												log.Printf("Counter decremented to: %d", counter)
@@ -920,11 +1909,11 @@ func HomeHandler(ctx *core.Context) widgets.Widget {
 										},
 
 										// Spacer
-										widgets.SizedBox{Width: &[]float64{20}[0]},
+										SizedBox{Width: &[]float64{20}[0]},
 
 										// Reset button
-										widgets.FilledButton{
-											Child: widgets.Text{Data: "Reset"},
+										FilledButton{
+											Child: Text{Data: "Reset"},
 											OnPressed: func() {
 												counter = 0
 												log.Printf("Counter reset to: %d", counter)
@@ -933,11 +1922,11 @@ func HomeHandler(ctx *core.Context) widgets.Widget {
 										},
 
 										// Spacer
-										widgets.SizedBox{Width: &[]float64{20}[0]},
+										SizedBox{Width: &[]float64{20}[0]},
 
 										// Increment button
-										widgets.ElevatedButton{
-											Child: widgets.Text{Data: "+"},
+										ElevatedButton{
+											Child: Text{Data: "+"},
 											OnPressed: func() {
 												counter++
 												log.Printf("Counter incremented to: %d", counter)
@@ -1142,8 +2131,7 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/gideonsigilai/godin/pkg/core"
-	"github.com/gideonsigilai/godin/pkg/widgets"
+	. "github.com/gideonsigilai/godin/pkg/godin"
 )
 
 // Todo represents a todo item
@@ -1161,7 +2149,7 @@ var todos = []Todo{
 var nextID = 3
 
 func main() {
-	app := core.New()
+	app := New()
 
 	// Routes
 	app.GET("/", HomeHandler)
@@ -1177,8 +2165,8 @@ func main() {
 }
 
 // HomeHandler renders the main todo page
-func HomeHandler(ctx *core.Context) widgets.Widget {
-	return widgets.Container{
+func HomeHandler(ctx *Context) Widget {
+	return Container{
 		Style: "min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f5f5f5;",
 		Child: widgets.Column{
 			Children: []widgets.Widget{
@@ -1645,30 +2633,11 @@ func createBaseTemplate(appName string) {
         {{.Content}}
     </div>
 
-    <!-- WebSocket Connection (if enabled) -->
-    <script>
-        // WebSocket connection for real-time updates
-        if (window.location.protocol === 'https:') {
-            var wsProtocol = 'wss:';
-        } else {
-            var wsProtocol = 'ws:';
-        }
+    <!-- Godin Framework JavaScript -->
+    <script src="/static/js/godin.js"></script>
 
-        var ws = new WebSocket(wsProtocol + '//' + window.location.host + '/ws');
-
-        ws.onmessage = function(event) {
-            // Handle WebSocket messages
-            console.log('WebSocket message:', event.data);
-        };
-
-        ws.onopen = function() {
-            console.log('WebSocket connected');
-        };
-
-        ws.onclose = function() {
-            console.log('WebSocket disconnected');
-        };
-    </script>
+    <!-- Hot Reload JavaScript (Development Only) -->
+    <script src="/static/js/hot-reload.js"></script>
 
     <!-- Additional JavaScript -->
     {{if .JS}}
@@ -1856,11 +2825,11 @@ Create reusable widgets in the ` + "`widgets/components/`" + ` directory:
 ` + "```go" + `
 package components
 
-import "github.com/gideonsigilai/godin/pkg/widgets"
+import . "github.com/gideonsigilai/godin/pkg/godin"
 
-func MyCustomWidget() widgets.Widget {
-    return widgets.Container{
-        Child: widgets.Text{
+func MyCustomWidget() Widget {
+    return Container{
+        Child: Text{
             Data: "Hello from custom widget!",
         },
     }
@@ -1964,7 +2933,8 @@ func needsImportFix() bool {
 
 	content := string(mainContent)
 	hasGodinImports := strings.Contains(content, "github.com/gideonsigilai/godin/pkg/core") ||
-		strings.Contains(content, "github.com/gideonsigilai/godin/pkg/widgets")
+		strings.Contains(content, "github.com/gideonsigilai/godin/pkg/widgets") ||
+		strings.Contains(content, "github.com/gideonsigilai/godin/pkg/godin")
 
 	if !hasGodinImports {
 		return false
@@ -1990,6 +2960,8 @@ func needsImportFix() bool {
 
 // fixFrameworkImports temporarily fixes the import paths for framework development
 func fixFrameworkImports() error {
+	fmt.Println("🔧 Starting framework imports fix...")
+
 	// Find the framework root directory
 	var frameworkRoot string
 	frameworkPaths := []string{
@@ -2000,16 +2972,19 @@ func fixFrameworkImports() error {
 	}
 
 	for _, path := range frameworkPaths {
+		fmt.Printf("🔍 Checking framework path: %s\n", path)
 		if _, err := os.Stat(filepath.Join(path, "pkg/core")); err == nil {
 			abs, err := filepath.Abs(path)
 			if err == nil {
 				frameworkRoot = abs
+				fmt.Printf("✅ Found framework at: %s\n", frameworkRoot)
 				break
 			}
 		}
 	}
 
 	if frameworkRoot == "" {
+		fmt.Println("❌ Could not locate Godin framework source code")
 		return fmt.Errorf("could not locate Godin framework source code")
 	}
 
@@ -2026,15 +3001,34 @@ require (
 `, getModuleName(), frameworkRoot)
 
 	// Write the updated go.mod
+	fmt.Println("📝 Writing updated go.mod...")
 	if err := os.WriteFile("go.mod", []byte(goModContent), 0644); err != nil {
 		return fmt.Errorf("failed to write go.mod: %v", err)
 	}
+	fmt.Println("✅ go.mod updated successfully")
 
-	// Run go mod tidy to clean up
+	// Run go mod tidy to clean up with timeout
+	fmt.Println("🧹 Running go mod tidy...")
 	tidyCmd := exec.Command("go", "mod", "tidy")
-	if err := tidyCmd.Run(); err != nil {
-		// Don't fail if tidy fails, just warn
-		log.Printf("⚠️  Warning: go mod tidy failed: %v", err)
+	tidyCmd.Stdout = os.Stdout
+	tidyCmd.Stderr = os.Stderr
+
+	// Run with timeout to prevent hanging
+	done := make(chan error, 1)
+	go func() {
+		done <- tidyCmd.Run()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			log.Printf("⚠️  Warning: go mod tidy failed: %v", err)
+		} else {
+			fmt.Println("✅ go mod tidy completed")
+		}
+	case <-time.After(10 * time.Second):
+		tidyCmd.Process.Kill()
+		log.Printf("⚠️  Warning: go mod tidy timed out")
 	}
 
 	return nil
@@ -2059,4 +3053,94 @@ func getModuleName() string {
 	}
 
 	return "myapp"
+}
+
+// isPortAvailable checks if a port is available for binding
+func isPortAvailable(port string) bool {
+	// Remove the colon if present
+	if strings.HasPrefix(port, ":") {
+		port = port[1:]
+	}
+
+	// Try to listen on the port
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		return false
+	}
+
+	// Close the listener immediately
+	listener.Close()
+	return true
+}
+
+// testHotReloadEndpoints tests if the hot reload endpoints are working
+func testHotReloadEndpoints(port string) {
+	// Wait for server to be fully ready
+	time.Sleep(2 * time.Second)
+
+	// Prepare the URL - handle both :port and port formats
+	testPort := port
+	if !strings.HasPrefix(testPort, ":") {
+		testPort = ":" + testPort
+	}
+
+	client := &http.Client{Timeout: 3 * time.Second}
+
+	// Test the hot-refresh endpoint
+	url := fmt.Sprintf("http://localhost%s/api/hot-refresh", testPort)
+	log.Printf("🧪 Testing hot reload endpoint: %s", url)
+
+	resp, err := client.Post(url, "application/json", strings.NewReader(`{"type":"test"}`))
+	if err != nil {
+		log.Printf("⚠️  Hot reload endpoint test failed: %v", err)
+		log.Printf("💡 This might be normal if the application doesn't use Godin framework hot reload")
+		return
+	}
+
+	if resp != nil {
+		resp.Body.Close()
+		if resp.StatusCode == 200 {
+			log.Printf("✅ Hot reload endpoints are working correctly")
+		} else {
+			log.Printf("⚠️  Hot reload endpoint returned status: %d", resp.StatusCode)
+		}
+	}
+}
+
+// findAvailablePort finds an available port starting from the given port
+func findAvailablePort(originalPort string) string {
+	// Remove the colon if present
+	port := originalPort
+	if strings.HasPrefix(port, ":") {
+		port = port[1:]
+	}
+
+	// Convert to integer
+	portNum := 8080 // default fallback
+	if p, err := strconv.Atoi(port); err == nil {
+		portNum = p
+	}
+
+	// Try the original port first
+	if isPortAvailable(fmt.Sprintf("%d", portNum)) {
+		return originalPort
+	}
+
+	// Try ports in a range around the original port
+	for i := 1; i <= 10; i++ {
+		testPort := portNum + i
+		if testPort > 65535 {
+			testPort = portNum - i
+		}
+		if testPort > 0 && isPortAvailable(fmt.Sprintf("%d", testPort)) {
+			if strings.HasPrefix(originalPort, ":") {
+				return fmt.Sprintf(":%d", testPort)
+			}
+			return fmt.Sprintf("%d", testPort)
+		}
+	}
+
+	// Fallback to original port if nothing else works
+	log.Printf("⚠️  Could not find available port, using original: %s", originalPort)
+	return originalPort
 }

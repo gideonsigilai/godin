@@ -3,9 +3,9 @@ package core
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"html/template"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -20,6 +20,7 @@ type Context struct {
 	vars     map[string]string
 	params   map[string]interface{}
 	handlers map[string]Handler
+	state    map[string]interface{} // Local state for this context
 }
 
 // NewContext creates a new request context
@@ -31,6 +32,7 @@ func NewContext(w http.ResponseWriter, r *http.Request, app *App) *Context {
 		vars:     mux.Vars(r),
 		params:   make(map[string]interface{}),
 		handlers: make(map[string]Handler),
+		state:    make(map[string]interface{}),
 	}
 }
 
@@ -98,6 +100,48 @@ func (c *Context) GetInt(key string) int {
 // GetBool retrieves a boolean value from the context
 func (c *Context) GetBool(key string) bool {
 	if value, ok := c.params[key].(bool); ok {
+		return value
+	}
+	return false
+}
+
+// SetState sets a value in the local state and triggers UI updates
+func (c *Context) SetState(key string, value interface{}) {
+	// Set in local context state
+	c.state[key] = value
+
+	// Also set in global state manager for persistence and WebSocket broadcasting
+	c.App.State().Set(key, value)
+}
+
+// GetState retrieves a value from the local state
+func (c *Context) GetState(key string) interface{} {
+	if value, exists := c.state[key]; exists {
+		return value
+	}
+	// Fallback to global state manager
+	return c.App.State().Get(key)
+}
+
+// GetStateString retrieves a string value from the state
+func (c *Context) GetStateString(key string) string {
+	if value, ok := c.GetState(key).(string); ok {
+		return value
+	}
+	return ""
+}
+
+// GetStateInt retrieves an integer value from the state
+func (c *Context) GetStateInt(key string) int {
+	if value, ok := c.GetState(key).(int); ok {
+		return value
+	}
+	return 0
+}
+
+// GetStateBool retrieves a boolean value from the state
+func (c *Context) GetStateBool(key string) bool {
+	if value, ok := c.GetState(key).(bool); ok {
 		return value
 	}
 	return false
@@ -199,8 +243,8 @@ func (c *Context) RenderTemplate(widget Widget, title string) {
 		Content: template.HTML(content),
 	}
 
-	// Load and parse the base template
-	templatePath := filepath.Join("pkg", "templates", "base.html")
+	// Find the correct path to the base template
+	templatePath := c.findTemplatePath()
 	tmpl, err := template.ParseFiles(templatePath)
 	if err != nil {
 		// Fallback to simple HTML if template fails
@@ -221,6 +265,30 @@ func (c *Context) RenderTemplate(widget Widget, title string) {
 	c.WriteHTML(buf.String())
 }
 
+// findTemplatePath finds the correct path to the base.html template
+func (c *Context) findTemplatePath() string {
+	// Try current directory first
+	templatePath := filepath.Join("pkg", "templates", "base.html")
+	if _, err := os.Stat(templatePath); err == nil {
+		return templatePath
+	}
+
+	// Try parent directory
+	templatePath = filepath.Join("..", "pkg", "templates", "base.html")
+	if _, err := os.Stat(templatePath); err == nil {
+		return templatePath
+	}
+
+	// Try grandparent directory (for examples in subdirectories)
+	templatePath = filepath.Join("..", "..", "pkg", "templates", "base.html")
+	if _, err := os.Stat(templatePath); err == nil {
+		return templatePath
+	}
+
+	// Fallback to original path
+	return filepath.Join("pkg", "templates", "base.html")
+}
+
 // WriteText writes a plain text response
 func (c *Context) WriteText(text string) {
 	c.SetHeader("Content-Type", "text/plain")
@@ -229,19 +297,33 @@ func (c *Context) WriteText(text string) {
 
 // RegisterHandler registers a handler function and returns a unique ID
 func (c *Context) RegisterHandler(handler Handler) string {
-	// Generate a unique ID for the handler
-	handlerID := fmt.Sprintf("handler_%d", len(c.handlers))
-	c.handlers[handlerID] = handler
+	// Use the app's global handler registry
+	return c.App.RegisterHandler(handler)
+}
 
-	// Register the handler with the app's router
-	c.App.router.HandleFunc("/handlers/"+handlerID, func(w http.ResponseWriter, r *http.Request) {
-		ctx := NewContext(w, r, c.App)
-		widget := handler(ctx)
-		if widget != nil {
-			html := widget.Render(ctx)
-			ctx.WriteHTML(html)
+// Theme returns the current theme data
+func (c *Context) Theme() *ThemeData {
+	if c.App != nil {
+		return c.App.GetTheme()
+	}
+	return DefaultLightTheme
+}
+
+// MediaQuery returns the current MediaQuery data
+func (c *Context) MediaQuery() *MediaQueryData {
+	// First check if MediaQuery data is stored in context
+	if data, ok := c.Get("mediaQuery").(*MediaQueryData); ok {
+		return data
+	}
+
+	// Fallback to app's MediaQueryProvider
+	if c.App != nil {
+		provider := c.App.MediaQueryProvider()
+		if provider != nil {
+			return provider.GetData()
 		}
-	}).Methods("GET", "POST", "PUT", "DELETE")
+	}
 
-	return handlerID
+	// Return default data if nothing is available
+	return NewDefaultMediaQueryData()
 }

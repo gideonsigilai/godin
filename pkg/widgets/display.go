@@ -217,7 +217,7 @@ func (i Image) Render(ctx *core.Context) string {
 
 	// Add color blending if specified
 	if i.Color != "" {
-		styles = append(styles, fmt.Sprintf("filter: hue-rotate(0deg) saturate(1) brightness(1)"))
+		styles = append(styles, "filter: hue-rotate(0deg) saturate(1) brightness(1)")
 		// Note: CSS doesn't have direct color blending like Flutter, this is a simplified approach
 	}
 

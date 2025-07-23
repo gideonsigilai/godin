@@ -10,6 +10,7 @@ import (
 
 // TextField represents a text input widget with full Flutter properties
 type TextField struct {
+	InteractiveWidget             // Embed InteractiveWidget for callback support
 	ID                            string
 	Style                         string
 	Class                         string
@@ -115,11 +116,11 @@ func (tf TextField) Render(ctx *core.Context) string {
 	}
 
 	// Add value from controller or direct value
-	if tf.Controller != nil && tf.Controller.Text != "" {
+	if tf.Controller != nil && tf.Controller.Text() != "" {
 		if isTextarea {
 			// For textarea, content goes inside the element
 		} else {
-			attrs["value"] = tf.Controller.Text
+			attrs["value"] = tf.Controller.Text()
 		}
 	}
 
@@ -204,13 +205,28 @@ func (tf TextField) Render(ctx *core.Context) string {
 		}
 	}
 
-	// Add event handlers (simplified - would need proper HTMX integration)
+	// Initialize the InteractiveWidget if needed
+	if !tf.InteractiveWidget.IsInitialized() {
+		tf.InteractiveWidget.Initialize(ctx)
+		tf.InteractiveWidget.SetWidgetType("TextField")
+	}
+
+	// Register callbacks if provided
 	if tf.OnChanged != nil {
-		attrs["oninput"] = "handleTextFieldChange(this)"
+		tf.InteractiveWidget.RegisterCallback("OnChanged", tf.OnChanged)
 	}
 	if tf.OnSubmitted != nil {
-		attrs["onkeypress"] = "handleTextFieldSubmit(event, this)"
+		tf.InteractiveWidget.RegisterCallback("OnSubmitted", tf.OnSubmitted)
 	}
+	if tf.OnEditingComplete != nil {
+		tf.InteractiveWidget.RegisterCallback("OnEditingComplete", tf.OnEditingComplete)
+	}
+	if tf.OnTap != nil {
+		tf.InteractiveWidget.RegisterCallback("OnTap", tf.OnTap)
+	}
+
+	// Merge with interactive widget attributes (HTMX, event handlers, etc.)
+	attrs = tf.InteractiveWidget.MergeAttributes(attrs)
 
 	// Combine all styles
 	if len(styles) > 0 {
@@ -221,7 +237,7 @@ func (tf TextField) Render(ctx *core.Context) string {
 	if isTextarea {
 		content := ""
 		if tf.Controller != nil {
-			content = tf.Controller.Text
+			content = tf.Controller.Text()
 		}
 		return htmlRenderer.RenderElement("textarea", attrs, content, false)
 	} else {
@@ -231,6 +247,7 @@ func (tf TextField) Render(ctx *core.Context) string {
 
 // TextFormField represents a text form field widget with full Flutter properties
 type TextFormField struct {
+	InteractiveWidget             // Embed InteractiveWidget for callback support
 	ID                            string
 	Style                         string
 	Class                         string
@@ -429,13 +446,31 @@ func (tff TextFormField) Render(ctx *core.Context) string {
 		attrs["data-validator"] = "true"
 	}
 
-	// Add event handlers (simplified - would need proper HTMX integration)
+	// Initialize the InteractiveWidget if needed
+	if !tff.InteractiveWidget.IsInitialized() {
+		tff.InteractiveWidget.Initialize(ctx)
+		tff.InteractiveWidget.SetWidgetType("TextFormField")
+	}
+
+	// Register callbacks if provided
 	if tff.OnChanged != nil {
-		attrs["oninput"] = "handleTextFormFieldChange(this)"
+		tff.InteractiveWidget.RegisterCallback("OnChanged", tff.OnChanged)
 	}
 	if tff.OnFieldSubmitted != nil {
-		attrs["onkeypress"] = "handleTextFormFieldSubmit(event, this)"
+		tff.InteractiveWidget.RegisterCallback("OnFieldSubmitted", tff.OnFieldSubmitted)
 	}
+	if tff.OnEditingComplete != nil {
+		tff.InteractiveWidget.RegisterCallback("OnEditingComplete", tff.OnEditingComplete)
+	}
+	if tff.OnTap != nil {
+		tff.InteractiveWidget.RegisterCallback("OnTap", tff.OnTap)
+	}
+	if tff.OnSaved != nil {
+		tff.InteractiveWidget.RegisterCallback("OnSaved", tff.OnSaved)
+	}
+
+	// Merge with interactive widget attributes (HTMX, event handlers, etc.)
+	attrs = tff.InteractiveWidget.MergeAttributes(attrs)
 
 	// Combine all styles
 	if len(styles) > 0 {
@@ -444,8 +479,8 @@ func (tff TextFormField) Render(ctx *core.Context) string {
 
 	// Determine initial value
 	initialValue := tff.InitialValue
-	if tff.Controller != nil && tff.Controller.Text != "" {
-		initialValue = tff.Controller.Text
+	if tff.Controller != nil && tff.Controller.Text() != "" {
+		initialValue = tff.Controller.Text()
 	}
 
 	// Render the appropriate element
@@ -461,6 +496,7 @@ func (tff TextFormField) Render(ctx *core.Context) string {
 
 // Switch represents a switch widget with full Flutter properties
 type Switch struct {
+	InteractiveWidget         // Embed InteractiveWidget for callback support
 	ID                        string
 	Style                     string
 	Class                     string
@@ -577,10 +613,19 @@ func (s Switch) Render(ctx *core.Context) string {
 		inputAttrs["style"] = strings.Join(inputStyles, "; ")
 	}
 
-	// Add event handlers
-	if s.OnChanged != nil {
-		inputAttrs["onchange"] = "handleSwitchChange(this)"
+	// Initialize the InteractiveWidget if needed
+	if !s.InteractiveWidget.IsInitialized() {
+		s.InteractiveWidget.Initialize(ctx)
+		s.InteractiveWidget.SetWidgetType("Switch")
 	}
+
+	// Register callbacks if provided
+	if s.OnChanged != nil {
+		s.InteractiveWidget.RegisterCallback("OnChanged", s.OnChanged)
+	}
+
+	// Merge with interactive widget attributes (HTMX, event handlers, etc.)
+	inputAttrs = s.InteractiveWidget.MergeAttributes(inputAttrs)
 
 	// Create the thumb element (using a span positioned absolutely)
 	thumbAttrs := make(map[string]string)
@@ -628,24 +673,32 @@ func (s Switch) Render(ctx *core.Context) string {
 
 // Button represents a button widget
 type Button struct {
-	ID       string
-	Style    string
-	Class    string
-	Text     string
-	OnClick  func() // Go function callback
-	Type     string // "primary", "secondary", "danger"
-	Disabled bool
-	// HTMX attributes
-	HxPost   string // hx-post
-	HxGet    string // hx-get
-	HxTarget string // hx-target
-	HxSwap   string // hx-swap
+	InteractiveWidget // Embed InteractiveWidget for callback support
+	ID                string
+	Style             string
+	Class             string
+	Text              string
+	OnPressed         func() // Go function callback (Flutter-style)
+	Type              string // "primary", "secondary", "danger"
+	Disabled          bool
 }
 
 // Render renders the button as HTML
 func (b Button) Render(ctx *core.Context) string {
 	htmlRenderer := renderer.NewHTMLRenderer()
 
+	// Initialize the InteractiveWidget if needed
+	if !b.InteractiveWidget.IsInitialized() {
+		b.InteractiveWidget.Initialize(ctx)
+		b.InteractiveWidget.SetWidgetType("Button")
+	}
+
+	// Register OnPressed callback if provided
+	if b.OnPressed != nil {
+		b.InteractiveWidget.RegisterCallback("OnPressed", b.OnPressed)
+	}
+
+	// Build base attributes
 	attrs := buildAttributes(b.ID, b.Style, b.Class+" godin-button")
 
 	if b.Type != "" {
@@ -656,32 +709,8 @@ func (b Button) Render(ctx *core.Context) string {
 		attrs["disabled"] = "disabled"
 	}
 
-	// Register Go function callback if provided
-	if b.OnClick != nil {
-		handlerID := ctx.RegisterHandler(func(ctx *core.Context) Widget {
-			b.OnClick()
-			return nil // Return nil for callbacks that don't return widgets
-		})
-
-		attrs["hx-post"] = "/handlers/" + handlerID
-		attrs["hx-trigger"] = "click"
-	}
-
-	// Add HTMX attributes if provided (these override the OnClick handler)
-	if b.HxPost != "" {
-		attrs["hx-post"] = b.HxPost
-		attrs["hx-trigger"] = "click"
-	}
-	if b.HxGet != "" {
-		attrs["hx-get"] = b.HxGet
-		attrs["hx-trigger"] = "click"
-	}
-	if b.HxTarget != "" {
-		attrs["hx-target"] = b.HxTarget
-	}
-	if b.HxSwap != "" {
-		attrs["hx-swap"] = b.HxSwap
-	}
+	// Merge with interactive widget attributes (HTMX, event handlers, etc.)
+	attrs = b.InteractiveWidget.MergeAttributes(attrs)
 
 	return htmlRenderer.RenderElement("button", attrs, b.Text, false)
 }
@@ -1114,19 +1143,20 @@ func (s Slider) Render(ctx *core.Context) string {
 
 // ElevatedButton represents an elevated button widget with full Flutter properties
 type ElevatedButton struct {
-	ID               string
-	Style            string
-	Class            string
-	OnPressed        VoidCallback              // Callback when pressed
-	OnLongPress      VoidCallback              // Callback when long pressed
-	OnHover          ValueChanged[bool]        // Callback when hovered
-	OnFocusChange    ValueChanged[bool]        // Callback when focus changes
-	ButtonStyle      *ButtonStyle              // Button style
-	FocusNode        *FocusNode                // Focus node
-	AutoFocus        bool                      // Auto focus
-	ClipBehavior     Clip                      // Clip behavior
-	StatesController *MaterialStatesController // States controller
-	Child            Widget                    // Child widget
+	InteractiveWidget // Embed InteractiveWidget for callback support
+	ID                string
+	Style             string
+	Class             string
+	OnPressed         VoidCallback              // Callback when pressed
+	OnLongPress       VoidCallback              // Callback when long pressed
+	OnHover           ValueChanged[bool]        // Callback when hovered
+	OnFocusChange     ValueChanged[bool]        // Callback when focus changes
+	ButtonStyle       *ButtonStyle              // Button style
+	FocusNode         *FocusNode                // Focus node
+	AutoFocus         bool                      // Auto focus
+	ClipBehavior      Clip                      // Clip behavior
+	StatesController  *MaterialStatesController // States controller
+	Child             Widget                    // Child widget
 }
 
 // FocusNode represents a focus node (simplified)
@@ -1221,16 +1251,25 @@ func (eb ElevatedButton) Render(ctx *core.Context) string {
 		attrs["style"] = strings.Join(styles, "; ")
 	}
 
-	// Add HTMX event handlers for OnPressed callback
-	if eb.OnPressed != nil {
-		handlerID := ctx.RegisterHandler(func(ctx *core.Context) Widget {
-			eb.OnPressed()
-			return nil // Return nil for callbacks that don't return widgets
-		})
-
-		attrs["hx-post"] = "/handlers/" + handlerID
-		attrs["hx-trigger"] = "click"
+	// Initialize the InteractiveWidget if needed
+	if !eb.InteractiveWidget.IsInitialized() {
+		eb.InteractiveWidget.Initialize(ctx)
+		eb.InteractiveWidget.SetWidgetType("ElevatedButton")
 	}
+
+	// Register callbacks if provided
+	if eb.OnPressed != nil {
+		eb.InteractiveWidget.RegisterCallback("OnPressed", eb.OnPressed)
+	}
+	if eb.OnLongPress != nil {
+		eb.InteractiveWidget.RegisterCallback("OnLongPress", eb.OnLongPress)
+	}
+	if eb.OnHover != nil {
+		eb.InteractiveWidget.RegisterCallback("OnHover", eb.OnHover)
+	}
+
+	// Merge with interactive widget attributes (HTMX, event handlers, etc.)
+	attrs = eb.InteractiveWidget.MergeAttributes(attrs)
 
 	// Add accessibility attributes
 	attrs["role"] = "button"
@@ -1251,19 +1290,20 @@ func (eb ElevatedButton) Render(ctx *core.Context) string {
 
 // TextButton represents a text button widget with full Flutter properties
 type TextButton struct {
-	ID               string
-	Style            string
-	Class            string
-	OnPressed        VoidCallback              // Callback when pressed
-	OnLongPress      VoidCallback              // Callback when long pressed
-	OnHover          ValueChanged[bool]        // Callback when hovered
-	OnFocusChange    ValueChanged[bool]        // Callback when focus changes
-	ButtonStyle      *ButtonStyle              // Button style
-	FocusNode        *FocusNode                // Focus node
-	AutoFocus        bool                      // Auto focus
-	ClipBehavior     Clip                      // Clip behavior
-	StatesController *MaterialStatesController // States controller
-	Child            Widget                    // Child widget
+	InteractiveWidget // Embed InteractiveWidget for callback support
+	ID                string
+	Style             string
+	Class             string
+	OnPressed         VoidCallback              // Callback when pressed
+	OnLongPress       VoidCallback              // Callback when long pressed
+	OnHover           ValueChanged[bool]        // Callback when hovered
+	OnFocusChange     ValueChanged[bool]        // Callback when focus changes
+	ButtonStyle       *ButtonStyle              // Button style
+	FocusNode         *FocusNode                // Focus node
+	AutoFocus         bool                      // Auto focus
+	ClipBehavior      Clip                      // Clip behavior
+	StatesController  *MaterialStatesController // States controller
+	Child             Widget                    // Child widget
 }
 
 // Render renders the text button as HTML
@@ -1333,16 +1373,28 @@ func (tb TextButton) Render(ctx *core.Context) string {
 		attrs["style"] = strings.Join(styles, "; ")
 	}
 
-	// Add HTMX event handlers for OnPressed callback
-	if tb.OnPressed != nil {
-		handlerID := ctx.RegisterHandler(func(ctx *core.Context) Widget {
-			tb.OnPressed()
-			return nil // Return nil for callbacks that don't return widgets
-		})
-
-		attrs["hx-post"] = "/handlers/" + handlerID
-		attrs["hx-trigger"] = "click"
+	// Initialize the InteractiveWidget if needed
+	if !tb.InteractiveWidget.IsInitialized() {
+		tb.InteractiveWidget.Initialize(ctx)
+		tb.InteractiveWidget.SetWidgetType("TextButton")
 	}
+
+	// Register callbacks if provided
+	if tb.OnPressed != nil {
+		tb.InteractiveWidget.RegisterCallback("OnPressed", tb.OnPressed)
+	}
+	if tb.OnLongPress != nil {
+		tb.InteractiveWidget.RegisterCallback("OnLongPress", tb.OnLongPress)
+	}
+	if tb.OnHover != nil {
+		tb.InteractiveWidget.RegisterCallback("OnHover", tb.OnHover)
+	}
+	if tb.OnFocusChange != nil {
+		tb.InteractiveWidget.RegisterCallback("OnFocusChange", tb.OnFocusChange)
+	}
+
+	// Merge with interactive widget attributes (HTMX, event handlers, etc.)
+	attrs = tb.InteractiveWidget.MergeAttributes(attrs)
 
 	// Add accessibility attributes
 	attrs["role"] = "button"
@@ -1363,19 +1415,20 @@ func (tb TextButton) Render(ctx *core.Context) string {
 
 // OutlinedButton represents an outlined button widget with full Flutter properties
 type OutlinedButton struct {
-	ID               string
-	Style            string
-	Class            string
-	OnPressed        VoidCallback              // Callback when pressed
-	OnLongPress      VoidCallback              // Callback when long pressed
-	OnHover          ValueChanged[bool]        // Callback when hovered
-	OnFocusChange    ValueChanged[bool]        // Callback when focus changes
-	ButtonStyle      *ButtonStyle              // Button style
-	FocusNode        *FocusNode                // Focus node
-	AutoFocus        bool                      // Auto focus
-	ClipBehavior     Clip                      // Clip behavior
-	StatesController *MaterialStatesController // States controller
-	Child            Widget                    // Child widget
+	InteractiveWidget // Embed InteractiveWidget for callback support
+	ID                string
+	Style             string
+	Class             string
+	OnPressed         VoidCallback              // Callback when pressed
+	OnLongPress       VoidCallback              // Callback when long pressed
+	OnHover           ValueChanged[bool]        // Callback when hovered
+	OnFocusChange     ValueChanged[bool]        // Callback when focus changes
+	ButtonStyle       *ButtonStyle              // Button style
+	FocusNode         *FocusNode                // Focus node
+	AutoFocus         bool                      // Auto focus
+	ClipBehavior      Clip                      // Clip behavior
+	StatesController  *MaterialStatesController // States controller
+	Child             Widget                    // Child widget
 }
 
 // Render renders the outlined button as HTML
@@ -1449,16 +1502,28 @@ func (ob OutlinedButton) Render(ctx *core.Context) string {
 		attrs["style"] = strings.Join(styles, "; ")
 	}
 
-	// Add HTMX event handlers for OnPressed callback
-	if ob.OnPressed != nil {
-		handlerID := ctx.RegisterHandler(func(ctx *core.Context) Widget {
-			ob.OnPressed()
-			return nil // Return nil for callbacks that don't return widgets
-		})
-
-		attrs["hx-post"] = "/handlers/" + handlerID
-		attrs["hx-trigger"] = "click"
+	// Initialize the InteractiveWidget if needed
+	if !ob.InteractiveWidget.IsInitialized() {
+		ob.InteractiveWidget.Initialize(ctx)
+		ob.InteractiveWidget.SetWidgetType("OutlinedButton")
 	}
+
+	// Register callbacks if provided
+	if ob.OnPressed != nil {
+		ob.InteractiveWidget.RegisterCallback("OnPressed", ob.OnPressed)
+	}
+	if ob.OnLongPress != nil {
+		ob.InteractiveWidget.RegisterCallback("OnLongPress", ob.OnLongPress)
+	}
+	if ob.OnHover != nil {
+		ob.InteractiveWidget.RegisterCallback("OnHover", ob.OnHover)
+	}
+	if ob.OnFocusChange != nil {
+		ob.InteractiveWidget.RegisterCallback("OnFocusChange", ob.OnFocusChange)
+	}
+
+	// Merge with interactive widget attributes (HTMX, event handlers, etc.)
+	attrs = ob.InteractiveWidget.MergeAttributes(attrs)
 
 	// Add accessibility attributes
 	attrs["role"] = "button"
@@ -1479,19 +1544,20 @@ func (ob OutlinedButton) Render(ctx *core.Context) string {
 
 // FilledButton represents a filled button widget with full Flutter properties
 type FilledButton struct {
-	ID               string
-	Style            string
-	Class            string
-	OnPressed        VoidCallback              // Callback when pressed
-	OnLongPress      VoidCallback              // Callback when long pressed
-	OnHover          ValueChanged[bool]        // Callback when hovered
-	OnFocusChange    ValueChanged[bool]        // Callback when focus changes
-	ButtonStyle      *ButtonStyle              // Button style
-	FocusNode        *FocusNode                // Focus node
-	AutoFocus        bool                      // Auto focus
-	ClipBehavior     Clip                      // Clip behavior
-	StatesController *MaterialStatesController // States controller
-	Child            Widget                    // Child widget
+	InteractiveWidget // Embed InteractiveWidget for callback support
+	ID                string
+	Style             string
+	Class             string
+	OnPressed         VoidCallback              // Callback when pressed
+	OnLongPress       VoidCallback              // Callback when long pressed
+	OnHover           ValueChanged[bool]        // Callback when hovered
+	OnFocusChange     ValueChanged[bool]        // Callback when focus changes
+	ButtonStyle       *ButtonStyle              // Button style
+	FocusNode         *FocusNode                // Focus node
+	AutoFocus         bool                      // Auto focus
+	ClipBehavior      Clip                      // Clip behavior
+	StatesController  *MaterialStatesController // States controller
+	Child             Widget                    // Child widget
 }
 
 // Render renders the filled button as HTML
@@ -1595,31 +1661,32 @@ func (fb FilledButton) Render(ctx *core.Context) string {
 
 // IconButton represents an icon button widget with full Flutter properties
 type IconButton struct {
-	ID             string
-	Style          string
-	Class          string
-	OnPressed      VoidCallback        // Callback when pressed
-	Icon           Widget              // Icon widget
-	IconSize       *float64            // Icon size
-	VisualDensity  *VisualDensity      // Visual density
-	Padding        *EdgeInsetsGeometry // Padding
-	Alignment      AlignmentGeometry   // Alignment
-	SplashRadius   *float64            // Splash radius
-	Color          Color               // Icon color
-	FocusColor     Color               // Focus color
-	HoverColor     Color               // Hover color
-	HighlightColor Color               // Highlight color
-	SplashColor    Color               // Splash color
-	DisabledColor  Color               // Disabled color
-	MouseCursor    MouseCursor         // Mouse cursor
-	FocusNode      *FocusNode          // Focus node
-	AutoFocus      bool                // Auto focus
-	Tooltip        string              // Tooltip text
-	EnableFeedback *bool               // Enable feedback
-	Constraints    *BoxConstraints     // Layout constraints
-	ButtonStyle    *ButtonStyle        // Button style
-	IsSelected     *bool               // Is selected
-	SelectedIcon   Widget              // Selected icon
+	InteractiveWidget // Embed InteractiveWidget for callback support
+	ID                string
+	Style             string
+	Class             string
+	OnPressed         VoidCallback        // Callback when pressed
+	Icon              Widget              // Icon widget
+	IconSize          *float64            // Icon size
+	VisualDensity     *VisualDensity      // Visual density
+	Padding           *EdgeInsetsGeometry // Padding
+	Alignment         AlignmentGeometry   // Alignment
+	SplashRadius      *float64            // Splash radius
+	Color             Color               // Icon color
+	FocusColor        Color               // Focus color
+	HoverColor        Color               // Hover color
+	HighlightColor    Color               // Highlight color
+	SplashColor       Color               // Splash color
+	DisabledColor     Color               // Disabled color
+	MouseCursor       MouseCursor         // Mouse cursor
+	FocusNode         *FocusNode          // Focus node
+	AutoFocus         bool                // Auto focus
+	Tooltip           string              // Tooltip text
+	EnableFeedback    *bool               // Enable feedback
+	Constraints       *BoxConstraints     // Layout constraints
+	ButtonStyle       *ButtonStyle        // Button style
+	IsSelected        *bool               // Is selected
+	SelectedIcon      Widget              // Selected icon
 }
 
 // Render renders the icon button as HTML
@@ -1724,6 +1791,7 @@ func (ib IconButton) Render(ctx *core.Context) string {
 
 // FloatingActionButton represents a floating action button widget with full Flutter properties
 type FloatingActionButton struct {
+	InteractiveWidget     // Embed InteractiveWidget for callback support
 	ID                    string
 	Style                 string
 	Class                 string

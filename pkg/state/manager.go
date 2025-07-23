@@ -1,7 +1,10 @@
 package state
 
 import (
+	"encoding/json"
+	"fmt"
 	"sync"
+	"time"
 )
 
 // WebSocketBroadcaster interface for broadcasting state changes
@@ -13,15 +16,19 @@ type WebSocketBroadcaster interface {
 type StateManager struct {
 	data        map[string]interface{}
 	watchers    map[string][]func(interface{})
+	notifiers   map[string]interface{} // Store ValueNotifiers
 	mutex       sync.RWMutex
 	broadcaster WebSocketBroadcaster
+	lastUpdated map[string]time.Time
 }
 
 // NewStateManager creates a new state manager
 func NewStateManager() *StateManager {
 	return &StateManager{
-		data:     make(map[string]interface{}),
-		watchers: make(map[string][]func(interface{})),
+		data:        make(map[string]interface{}),
+		watchers:    make(map[string][]func(interface{})),
+		notifiers:   make(map[string]interface{}),
+		lastUpdated: make(map[string]time.Time),
 	}
 }
 
@@ -39,6 +46,117 @@ func (sm *StateManager) SetBroadcaster(broadcaster WebSocketBroadcaster) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 	sm.broadcaster = broadcaster
+}
+
+// RegisterValueNotifier registers a ValueNotifier with the state manager
+func (sm *StateManager) RegisterValueNotifier(id string, notifier interface{}) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.notifiers[id] = notifier
+	sm.lastUpdated[id] = time.Now()
+}
+
+// GetValueNotifier retrieves a ValueNotifier by ID
+func (sm *StateManager) GetValueNotifier(id string) (interface{}, bool) {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	notifier, exists := sm.notifiers[id]
+	return notifier, exists
+}
+
+// UnregisterValueNotifier removes a ValueNotifier from the state manager
+func (sm *StateManager) UnregisterValueNotifier(id string) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	delete(sm.notifiers, id)
+	delete(sm.lastUpdated, id)
+}
+
+// notifyValueChange is called when a ValueNotifier's value changes
+func (sm *StateManager) notifyValueChange(id string, value interface{}) {
+	sm.mutex.Lock()
+	sm.lastUpdated[id] = time.Now()
+	sm.mutex.Unlock()
+
+	// Broadcast the change via WebSocket if broadcaster is available
+	if sm.broadcaster != nil {
+		// Create the broadcast message
+		message := map[string]interface{}{
+			"type":      "value_change",
+			"id":        id,
+			"value":     value,
+			"timestamp": time.Now().Unix(),
+		}
+
+		// Broadcast on the state channel for this specific notifier
+		sm.broadcaster.Broadcast(fmt.Sprintf("state:%s", id), message)
+	}
+
+	// Notify local watchers
+	sm.mutex.RLock()
+	watchers, exists := sm.watchers[id]
+	sm.mutex.RUnlock()
+
+	if exists {
+		for _, watcher := range watchers {
+			go watcher(value)
+		}
+	}
+}
+
+// GetValueNotifierState returns the current state of a ValueNotifier
+func (sm *StateManager) GetValueNotifierState(id string) (map[string]interface{}, error) {
+	sm.mutex.RLock()
+	notifier, exists := sm.notifiers[id]
+	lastUpdated := sm.lastUpdated[id]
+	sm.mutex.RUnlock()
+
+	if !exists {
+		return nil, fmt.Errorf("ValueNotifier with ID %s not found", id)
+	}
+
+	// Try to get the value using reflection or type assertion
+	var value interface{}
+	var jsonData []byte
+	var err error
+
+	// Try to call Value() method if it exists
+	if valueGetter, ok := notifier.(interface{ Value() interface{} }); ok {
+		value = valueGetter.Value()
+	} else {
+		value = notifier
+	}
+
+	// Try to serialize to JSON
+	if jsonSerializer, ok := notifier.(interface{ ToJSON() ([]byte, error) }); ok {
+		jsonData, err = jsonSerializer.ToJSON()
+	} else {
+		jsonData, err = json.Marshal(value)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize value: %v", err)
+	}
+
+	return map[string]interface{}{
+		"id":          id,
+		"value":       value,
+		"json":        string(jsonData),
+		"lastUpdated": lastUpdated.Unix(),
+		"type":        fmt.Sprintf("%T", notifier),
+	}, nil
+}
+
+// ListValueNotifiers returns a list of all registered ValueNotifier IDs
+func (sm *StateManager) ListValueNotifiers() []string {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	ids := make([]string, 0, len(sm.notifiers))
+	for id := range sm.notifiers {
+		ids = append(ids, id)
+	}
+	return ids
 }
 
 // Set sets a value in the state and notifies watchers

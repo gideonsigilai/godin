@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="/static/css/godin.css">
 
     <!-- HTMX Library -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.2"></script>
 
     <!-- Additional CSS -->
     {{if .CSS}}
@@ -22,8 +22,119 @@
         {{.Content}}
     </div>
 
+    <!-- Define handleButtonClick function FIRST before any other scripts -->
+    <script>
+        console.log('🔧 Defining handleButtonClick function immediately...');
+
+        // Define handleButtonClick function immediately and make it immutable
+        window.handleButtonClick = function(buttonId) {
+            console.log('🎉 BUTTON CLICKED:', buttonId);
+
+            // Send button click to server via fetch
+            fetch('/api/button-click/' + buttonId, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(function(response) {
+                if (response.ok) {
+                    console.log('✅ Button click processed successfully');
+                } else {
+                    console.error('❌ Button click failed:', response.status);
+                }
+            })
+            .catch(function(error) {
+                console.error('❌ Button click error:', error);
+            });
+        };
+
+        // New callback handler for HTMX-based interactive widgets
+        window.handleWidgetCallback = function(endpoint, event, value) {
+            console.log('🎯 WIDGET CALLBACK:', endpoint, event?.type, value);
+
+            // Prevent default behavior
+            if (event) {
+                event.preventDefault();
+            }
+
+            // Prepare form data
+            const formData = new FormData();
+            if (value !== undefined) {
+                formData.append('value', value);
+            }
+
+            // Add event information
+            if (event) {
+                formData.append('eventType', event.type);
+                if (event.target) {
+                    formData.append('targetId', event.target.id || '');
+                    formData.append('targetValue', event.target.value || '');
+                }
+            }
+
+            // Send request
+            fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    console.error('❌ Callback request failed:', response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Handle response if needed
+                if (data && data.status === 'success') {
+                    console.log('✅ Callback executed successfully');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Callback error:', error);
+            });
+        };
+
+        // Prevent the functions from being overwritten
+        Object.defineProperty(window, 'handleButtonClick', {
+            writable: false,
+            configurable: false
+        });
+
+        Object.defineProperty(window, 'handleWidgetCallback', {
+            writable: false,
+            configurable: false
+        });
+
+        console.log('✅ handleButtonClick function defined and protected:', typeof window.handleButtonClick);
+        console.log('✅ handleWidgetCallback function defined and protected:', typeof window.handleWidgetCallback);
+    </script>
+
     <!-- Godin Framework JavaScript -->
     <script src="/static/js/godin.js"></script>
+
+    <!-- Hot Reload JavaScript (Development Only) -->
+    <script src="/static/js/hot-reload.js"></script>
+
+    <!-- Debug JavaScript -->
+    <script>
+        console.log('HTMX loaded:', typeof htmx !== 'undefined');
+        console.log('handleButtonClick still available:', typeof window.handleButtonClick);
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            console.log('handleButtonClick available after DOM load:', typeof window.handleButtonClick);
+
+            // Log all button clicks
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName === 'BUTTON') {
+                    console.log('Button clicked:', e.target.textContent);
+                    console.log('Button attributes:', e.target.attributes);
+                    console.log('Button onclick:', e.target.getAttribute('onclick'));
+                }
+            });
+        });
+    </script>
 
     <!-- Additional JavaScript -->
     {{if .JS}}

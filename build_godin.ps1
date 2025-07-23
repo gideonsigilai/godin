@@ -1,0 +1,1 @@
+go build -o bin/godin.exe cmd/godin/main.go ; go build -o bin/godin cmd/godin/main.go ;  
